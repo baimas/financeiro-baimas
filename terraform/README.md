@@ -112,12 +112,33 @@ make logs       # n8n e caddy
 make boot-log   # cloud-init do primeiro boot
 ```
 
-## Uma ressalva honesta
+## O que já foi validado (29/08/2026)
 
-Este código foi escrito e revisado estaticamente — chaves balanceadas,
-referências entre recursos, variáveis, o template renderizando para YAML válido
-e os blocos de shell passando no `bash -n`. Mas **não rodei `terraform validate`
-nem `plan` contra uma conta real**, porque o ambiente onde ele foi escrito não
-tem acesso à rede para baixar o provider. Rode `make init && make plan` e leia o
-plano antes do primeiro `apply`; se algum argumento tiver mudado de nome na
-versão do provider, o erro aparece ali, antes de criar qualquer coisa.
+Rodado nesta máquina, sem conta na Oracle e sem custo:
+
+| Verificação | Resultado |
+|---|---|
+| `terraform init` | provider `oracle/oci` **6.37.0** instalado; `.terraform.lock.hcl` versionado |
+| `terraform validate` | **Success!** — nenhum argumento renomeado, nenhuma referência quebrada |
+| `terraform fmt -check` | limpo |
+| `cloud-init.yaml.tftpl` renderizado | YAML válido: 7 `write_files`, 17 entradas de `runcmd` |
+| Interpolação de dois níveis | `$${...}` vira `${...}` como esperado; nenhum `$$` residual |
+| Blocos de shell do `runcmd` | os 17 passam em `bash -n` |
+| `docker-compose.yml` embutido | `docker compose config` renderiza sem erro |
+
+O que **ainda não** foi verificado, porque exige credenciais reais: `terraform plan`
+e `apply`. Duas coisas só aparecem lá, e nenhuma delas é erro de código:
+
+- `data.oci_core_images` pode voltar vazio se não houver imagem Ubuntu 22.04 publicada
+  para o shape escolhido naquela região.
+- `data.oci_core_private_ips` depende da VNIC já existir; é a peça mais delicada do
+  `ip.tf` e só exercita de verdade no primeiro `apply`.
+
+Rode `make plan` e leia o plano inteiro antes do primeiro `apply`.
+
+## Segurança no primeiro acesso
+
+Assim que o certificado sair, **abra `https://<seu-dominio>` e crie a conta de dono
+do n8n imediatamente**. O n8n serve a tela de cadastro do owner para quem chegar
+primeiro — enquanto ela estiver aberta, quem souber o endereço pode assumir a
+instância.

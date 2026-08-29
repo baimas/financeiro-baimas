@@ -10,7 +10,6 @@ terraform.tfvars
 *.tfstate
 *.tfstate.*
 .terraform/
-.terraform.lock.hcl
 crash.log
 tfplan
 *.auto.tfvars

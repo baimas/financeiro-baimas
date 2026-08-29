@@ -42,9 +42,11 @@ Duas variáveis controlam tudo: `criar_instancia` (existe ou não) e `instancia_
 
 `GEMINI_API_KEY` e `N8N_ENCRYPTION_KEY` entram por variável sensitive do Terraform → `/opt/n8n/.env` (0600). **A encryption key não pode mudar** — é ela que cifra as credenciais do Telegram e do Google no n8n.
 
-## Ressalva
+## Estado da validação (29/08/2026)
 
-Código revisado estaticamente (balanceamento, referências entre recursos, variáveis, template renderizando YAML válido, blocos shell passando em `bash -n`), mas **não foi rodado `terraform validate` nem `plan`** — o ambiente de escrita não tinha rede para baixar o provider. Rodar `make init && make plan` e ler o plano antes do primeiro apply.
+`terraform init` (provider `oracle/oci` 6.37.0), `validate` e `fmt -check` passam nesta máquina. O cloud-init renderizado é YAML válido, a interpolação de dois níveis resolve certo, os 17 blocos de `runcmd` passam em `bash -n` e o compose embutido passa em `docker compose config`. Detalhes em `terraform/README.md`.
+
+Falta o que exige credencial: `plan` e `apply`. Ler o plano inteiro antes do primeiro apply.
 
 ## Pegadinhas conhecidas
 
