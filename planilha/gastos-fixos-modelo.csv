@@ -1,0 +1,9 @@
+nome,categoria,valor,dia_vencimento,ativo
+Internet,Moradia,150,10,sim
+Seguro,Carro,149,15,sim
+Aluguel,Moradia,1000,5,sim
+Ofertas,Ofertas,300,10,sim
+Universidade,Educação,380,10,sim
+Escola,Educação,1400,10,sim
+Vivo,Moradia,62,20,sim
+MEI,Outros,75,20,sim

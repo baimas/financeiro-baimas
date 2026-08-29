@@ -1,25 +1,17 @@
 #!/usr/bin/env node
-// Roda a suíte de mensagens reais contra o parser — sem n8n, sem Telegram, sem VM.
+// Roda a suíte de mensagens reais contra o Gemini — sem n8n, sem Telegram, sem VM.
 //
-// O truque: em vez de reescrever o prompt aqui (que sairia de sincronia na
-// primeira mudança), o script LÊ o workflow e EXECUTA os code nodes "Triagem e
-// prompt" e "Validar" de verdade, num sandbox. O que este teste aprova é o que
-// vai rodar em produção.
+// Executa os code nodes do workflow de verdade (via scripts/lib/pipeline.mjs),
+// com as abas Cartoes e GastosFixos vindas dos CSVs modelo. O que este teste
+// aprova é o que vai rodar em produção.
 //
 //   export GEMINI_API_KEY=AIza...
 //   scripts/testar-parser.mjs                 roda testes/mensagens.jsonl
-//   scripts/testar-parser.mjs --um "85 no mercado"
+//   scripts/testar-parser.mjs --um "85 no mercado no nubank"
 //   scripts/testar-parser.mjs --verbose       mostra o JSON cru do modelo
-//
-// Custo: ~32 chamadas curtas no free tier do Gemini. Na prática, zero.
 import { readFileSync } from "node:fs";
-import { createContext, runInContext } from "node:vm";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-
-const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
-const WORKFLOW = join(RAIZ, "n8n", "gastos-ingestao.n8n.json");
-const SUITE = join(RAIZ, "testes", "mensagens.jsonl");
+import { join } from "node:path";
+import { RAIZ, URL_GEMINI, MODELO, processar } from "./lib/pipeline.mjs";
 
 const args = process.argv.slice(2);
 const verbose = args.includes("--verbose");
@@ -33,81 +25,22 @@ if (!CHAVE) {
   process.exit(1);
 }
 
-// ── o workflow como fonte da verdade ────────────────────────────────────────
-const wf = JSON.parse(readFileSync(WORKFLOW, "utf8"));
-const no = (nome) => {
-  const n = wf.nodes.find((x) => x.name === nome);
-  if (!n) throw new Error(`nó "${nome}" não existe no workflow`);
-  return n;
-};
-const codigoTriagem = no("Triagem e prompt").parameters.jsCode;
-const codigoValidar = no("Validar").parameters.jsCode;
-const urlGemini = no("Gemini").parameters.url;
-const modelo = (urlGemini.match(/models\/([^:]+):/) || [, "?"])[1];
-
-// os ids autorizados vivem dentro do code node; o update falso precisa bater com eles
-const CHAT_ID = Number((codigoTriagem.match(/const CHAT_ID\s*=\s*(-?\d+)/) || [])[1]);
-const FROM_ID = Number((codigoTriagem.match(/MEMBROS\s*=\s*\{\s*(\d+)/) || [])[1]);
-if (!CHAT_ID || !FROM_ID) {
-  console.error("não consegui ler CHAT_ID/MEMBROS do nó Triagem — o formato mudou?");
-  process.exit(1);
-}
-
-// ── executa um code node do n8n fora do n8n ─────────────────────────────────
-const estatico = {};
-function rodarNode(codigo, entrada, nodesAnteriores = {}) {
-  const itens = (v) => ({ first: () => ({ json: v }), all: () => [{ json: v }] });
-  const ctx = createContext({
-    $input: itens(entrada),
-    $getWorkflowStaticData: () => estatico,
-    $: (nome) => itens(nodesAnteriores[nome]),
-    console,
-  });
-  const saida = runInContext(`(function(){\n${codigo}\n})()`, ctx, { timeout: 5000 });
-  return Array.isArray(saida) && saida.length ? saida[0].json : null;
-}
-
-// ── Gemini ──────────────────────────────────────────────────────────────────
 async function chamarGemini(payload, tentativa = 1) {
-  const r = await fetch(urlGemini, {
+  const r = await fetch(URL_GEMINI, {
     method: "POST",
     headers: { "x-goog-api-key": CHAVE, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  if (r.status === 429 && tentativa <= 4) {
-    await new Promise((s) => setTimeout(s, 4000 * tentativa));
+  // 429 e a familia 5xx sao do lado do Google, nao do parser: tentar de novo
+  if ([429, 500, 502, 503, 504].includes(r.status) && tentativa <= 5) {
+    await new Promise((s) => setTimeout(s, 3000 * tentativa));
     return chamarGemini(payload, tentativa + 1);
   }
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
 }
 
-// ── uma mensagem, do update falso até a linha da planilha ───────────────────
-let seqUpdate = 700000;
-async function processar(texto) {
-  const update = {
-    update_id: seqUpdate++,
-    message: {
-      message_id: 1,
-      chat: { id: CHAT_ID, type: "supergroup", title: "Casa" },
-      from: { id: FROM_ID, first_name: "Teste" },
-      text: texto,
-    },
-  };
-  const triado = rodarNode(codigoTriagem, update);
-  if (!triado) return { descartadoNaTriagem: true };
-
-  const resp = await chamarGemini(triado.payload);
-  let cru = null;
-  try {
-    cru = JSON.parse(resp.candidates[0].content.parts[0].text);
-  } catch { /* o nó Validar trata isso devolvendo [] */ }
-
-  const linha = rodarNode(codigoValidar, resp, { "Triagem e prompt": triado });
-  return { cru, linha, hoje: triado.hoje };
-}
-
-// ── datas relativas ─────────────────────────────────────────────────────────
+// datas relativas viram data absoluta na hora de comparar
 function resolverData(marcador, hoje) {
   const d = new Date(hoje + "T12:00:00Z");
   if (marcador === "HOJE") return hoje;
@@ -119,36 +52,42 @@ function resolverData(marcador, hoje) {
   return marcador;
 }
 
-function conferir(esperado, r) {
+function conferir(esperados, r) {
   const falhas = [];
-  const houve = !!r.linha;
-  if (esperado.eh_lancamento === false) {
-    if (houve) falhas.push(`devia ser descartada, virou ${r.linha.tipo} de ${r.linha.valor}`);
+  const obtidos = r.linhas;
+  if (obtidos.length !== esperados.length) {
+    falhas.push(`${obtidos.length} lançamento(s), esperava ${esperados.length}`);
     return falhas;
   }
-  if (!houve) {
-    falhas.push(r.descartadoNaTriagem ? "descartada na triagem (sem dígito?)" : "modelo disse que não é lançamento");
-    return falhas;
-  }
-  if (esperado.tipo && r.linha.tipo !== esperado.tipo) falhas.push(`tipo ${r.linha.tipo} ≠ ${esperado.tipo}`);
-  if (esperado.valor != null && Math.abs(r.linha.valor - esperado.valor) > 0.005) falhas.push(`valor ${r.linha.valor} ≠ ${esperado.valor}`);
-  if (esperado.categoria && r.linha.categoria !== esperado.categoria) falhas.push(`categoria ${r.linha.categoria} ≠ ${esperado.categoria}`);
-  if (esperado.data) {
-    const alvo = resolverData(esperado.data, r.hoje);
-    if (r.linha.data !== alvo) falhas.push(`data ${r.linha.data} ≠ ${alvo}`);
-  }
-  if (r.linha.competencia !== r.linha.data.slice(0, 7)) falhas.push("competência não bate com a data");
+  // ordena por valor dos dois lados: a ordem dentro da mensagem não importa
+  const ord = (a, b) => a.valor - b.valor;
+  const A = [...esperados].sort(ord);
+  const B = [...obtidos].sort(ord);
+  A.forEach((e, i) => {
+    const o = B[i];
+    const onde = esperados.length > 1 ? `[${i + 1}] ` : "";
+    if (e.valor != null && Math.abs(o.valor - e.valor) > 0.005) falhas.push(`${onde}valor ${o.valor} ≠ ${e.valor}`);
+    if (e.tipo && o.tipo !== e.tipo) falhas.push(`${onde}tipo ${o.tipo} ≠ ${e.tipo}`);
+    if (e.categoria && o.categoria !== e.categoria) falhas.push(`${onde}categoria ${o.categoria} ≠ ${e.categoria}`);
+    if (e.forma && o.forma !== e.forma) falhas.push(`${onde}forma ${o.forma} ≠ ${e.forma}`);
+    if (e.fixo && o.fixo !== e.fixo) falhas.push(`${onde}fixo "${o.fixo}" ≠ "${e.fixo}"`);
+    if (e.data) {
+      const alvo = resolverData(e.data, r.hoje);
+      if (o.data !== alvo) falhas.push(`${onde}data ${o.data} ≠ ${alvo}`);
+    }
+    if (o.competencia !== o.data.slice(0, 7)) falhas.push(`${onde}competência não bate com a data`);
+  });
   return falhas;
 }
 
-// ── execução ────────────────────────────────────────────────────────────────
 const casos = umTexto
-  ? [{ texto: umTexto, esperado: {} }]
-  : readFileSync(SUITE, "utf8").trim().split("\n").map((l) => JSON.parse(l));
+  ? [{ texto: umTexto, esperado: null }]
+  : readFileSync(join(RAIZ, "testes", "mensagens.jsonl"), "utf8")
+      .trim().split("\n").map((l) => JSON.parse(l));
 
-console.log(`modelo ${modelo} · ${casos.length} mensagem(ns)\n`);
+console.log(`modelo ${MODELO} · ${casos.length} mensagem(ns)\n`);
 
-const LIMITE = 3; // free tier tem RPM curto
+const LIMITE = 3; // o free tier tem RPM curto
 const resultados = new Array(casos.length);
 let cursor = 0;
 async function trabalhador() {
@@ -156,8 +95,8 @@ async function trabalhador() {
     const i = cursor++;
     const c = casos[i];
     try {
-      const r = await processar(c.texto);
-      resultados[i] = { c, r, falhas: umTexto ? [] : conferir(c.esperado, r) };
+      const r = await processar(c.texto, chamarGemini);
+      resultados[i] = { c, r, falhas: c.esperado ? conferir(c.esperado, r) : [] };
     } catch (e) {
       resultados[i] = { c, r: null, falhas: [`erro: ${e.message}`] };
     }
@@ -165,15 +104,22 @@ async function trabalhador() {
 }
 await Promise.all(Array.from({ length: LIMITE }, trabalhador));
 
+const desc = (l) => `${l.tipo} ${String(l.valor).padStart(7)} ${l.categoria}`
+  + (l.forma !== "Não informado" ? ` · ${l.forma}` : "")
+  + (l.fixo ? ` · fixo:${l.fixo}` : "")
+  + (l.competencia_fatura ? ` · fatura ${l.competencia_fatura}` : "");
+
 let ok = 0;
 for (const { c, r, falhas } of resultados) {
   const passou = falhas.length === 0;
   if (passou) ok++;
   const marca = passou ? "  ok " : "FALHA";
-  const saida = r?.linha
-    ? `${r.linha.tipo} ${String(r.linha.valor).padStart(8)} ${r.linha.categoria} · ${r.linha.data} · conf ${r.linha.confianca}`
-    : r?.descartadoNaTriagem ? "(descartada na triagem)" : "(não é lançamento)";
-  console.log(`${marca}  ${c.texto.padEnd(38)} → ${saida}`);
+  const linhas = r?.linhas ?? [];
+  const resumo = linhas.length === 0
+    ? (r?.descartadoNaTriagem ? "(descartada na triagem)" : "(não é lançamento)")
+    : desc(linhas[0]);
+  console.log(`${marca}  ${c.texto.slice(0, 42).padEnd(42)} → ${resumo}`);
+  linhas.slice(1).forEach((l) => console.log(`${" ".repeat(51)}${desc(l)}`));
   if (!passou) falhas.forEach((f) => console.log(`        ↳ ${f}`));
   if (c.nota && !passou) console.log(`        nota: ${c.nota}`);
   if (verbose && r?.cru) console.log(`        cru: ${JSON.stringify(r.cru)}`);

@@ -13,7 +13,7 @@
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,
       "position": [
-        -200,
+        -320,
         300
       ],
       "credentials": {
@@ -25,14 +25,89 @@
     },
     {
       "parameters": {
-        "jsCode": "// ── AJUSTE ESTES TRÊS VALORES ────────────────────────────────\nconst CHAT_ID  = -1001234567890;                 // id do grupo (negativo)\nconst MEMBROS  = { 111111111: 'Vini', 222222222: 'Lidia' };  // from.id -> nome\nconst CATEGORIAS = ['Mercado','Alimentacao','Transporte','Moradia','Saude',\n  'Educacao','Lazer','Assinaturas','Vestuario','Pets','Presentes',\n  'Investimento','Salario','Outros'];\n// ─────────────────────────────────────────────────────────────\n\nconst upd = $input.first().json;\nconst msg = upd.message || upd.edited_message;\nif (!msg) return [];\n\n// 1. autorizacao: precisa ser o grupo certo e um membro conhecido\nif (String(msg.chat.id) !== String(CHAT_ID)) return [];\nconst pessoa = MEMBROS[msg.from.id];\nif (!pessoa) return [];\n\n// 2. idempotencia: guarda os ultimos update_id na memoria do workflow\nconst st = $getWorkflowStaticData('global');\nst.vistos = st.vistos || [];\nif (st.vistos.includes(upd.update_id)) return [];\nst.vistos.push(upd.update_id);\nif (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);\n\n// 3. triagem: sem numero que pareca dinheiro, nao gasta LLM\nconst texto = (msg.text || msg.caption || '').trim();\nif (!texto) return [];\nif (!/\\d/.test(texto)) return [];\n\n// 4. data de hoje no fuso de Sao Paulo, formato YYYY-MM-DD\nconst hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });\n\nconst prompt = [\n  'Voce extrai lancamentos financeiros de mensagens em portugues do Brasil.',\n  'Hoje e ' + hoje + ' (fuso America/Sao_Paulo).',\n  'Categorias permitidas: ' + CATEGORIAS.join(', ') + '.',\n  '',\n  'Regras:',\n  '- eh_lancamento = false se a mensagem nao registra dinheiro gasto ou recebido.',\n  '- \"recebi\", \"caiu\", \"entrou\", \"salario\" e sinonimos = tipo entrada. O resto = saida.',\n  '- valor sempre positivo, em reais, usando ponto como separador decimal.',\n  '- resolva datas relativas (\"ontem\", \"sexta\") contra a data de hoje. Sem data explicita, use hoje.',\n  '- categoria obrigatoriamente uma da lista. Se nada encaixar, use Outros.',\n  '- descricao curta, ate 40 caracteres, com o estabelecimento quando houver.',\n  '- confianca de 0 a 1: quao seguro voce esta do valor e da categoria.',\n  '- nunca invente valor.',\n  '',\n  'Mensagem: ' + texto\n].join('\\n');\n\nconst payload = {\n  contents: [{ role: 'user', parts: [{ text: prompt }] }],\n  generationConfig: {\n    temperature: 0,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'object',\n      properties: {\n        eh_lancamento: { type: 'boolean' },\n        tipo:          { type: 'string', enum: ['saida', 'entrada'] },\n        valor:         { type: 'number' },\n        data:          { type: 'string' },\n        categoria:     { type: 'string', enum: CATEGORIAS },\n        descricao:     { type: 'string' },\n        confianca:     { type: 'number' }\n      },\n      required: ['eh_lancamento','tipo','valor','data','categoria','descricao','confianca']\n    }\n  }\n};\n\nreturn [{ json: {\n  update_id: upd.update_id,\n  message_id: msg.message_id,\n  chat_id: msg.chat.id,\n  pessoa,\n  texto,\n  hoje,\n  categorias: CATEGORIAS,\n  payload\n}}];\n"
+        "jsCode": "// ── AJUSTE ESTES DOIS VALORES ────────────────────────────────\nconst CHAT_ID = -1001234567890;                              // id do grupo (negativo)\nconst MEMBROS = { 111111111: 'Vini', 222222222: 'Lidia' };   // from.id -> nome\n// Descubra os dois rodando: scripts/checar-bot.sh <token>\n// ─────────────────────────────────────────────────────────────\n\nconst upd = $input.first().json;\nconst msg = upd.message || upd.edited_message;\nif (!msg) return [];\n\n// 1. autorizacao: precisa ser o grupo certo e um membro conhecido\nif (String(msg.chat.id) !== String(CHAT_ID)) return [];\nconst pessoa = MEMBROS[msg.from.id];\nif (!pessoa) return [];\n\n// 2. idempotencia: guarda os ultimos update_id na memoria do workflow\nconst st = $getWorkflowStaticData('global');\nst.vistos = st.vistos || [];\nif (st.vistos.includes(upd.update_id)) return [];\nst.vistos.push(upd.update_id);\nif (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);\n\n// 3. triagem: sem numero que pareca dinheiro, nao gasta LLM nem le a planilha\nconst texto = (msg.text || msg.caption || '').trim();\nif (!texto) return [];\nif (!/\\d/.test(texto)) return [];\n\n// 4. data de hoje no fuso de Sao Paulo, formato YYYY-MM-DD\nconst hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });\n\nreturn [{ json: {\n  update_id: upd.update_id,\n  message_id: msg.message_id,\n  chat_id: msg.chat.id,\n  pessoa,\n  texto,\n  hoje,\n}}];\n"
       },
-      "id": "a1000000-0000-4000-8000-000000000002",
-      "name": "Triagem e prompt",
+      "id": "a1000000-0000-4000-8000-000000000-80",
+      "name": "Triagem",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        40,
+        -80,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Cartoes",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "a1000000-0000-4000-8000-000000000160",
+      "name": "Ler cartões",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        160,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "GastosFixos",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "a1000000-0000-4000-8000-000000000400",
+      "name": "Ler gastos fixos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        300
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Monta o prompt e o responseSchema a partir do que a PLANILHA diz.\n// Cartões e gastos fixos vêm das abas Cartoes e GastosFixos: adicionar um cartão\n// novo ou um fixo novo é editar a planilha, nunca este workflow.\n\n// O que foi gasto. Alinhado com a planilha da casa.\nconst CATEGORIAS = [\n  'Mercado', 'Hortifrutti', 'Alimentação', 'Lanches', 'Confraternizações',\n  'Farmácia', 'Saúde', 'Academia', 'Assinaturas', 'Combustível', 'Passagem',\n  'Transporte', 'Carro', 'Barbeiro', 'Vestuário', 'Educação', 'Moradia',\n  'Pets', 'Presentes', 'Lazer', 'Ofertas', 'Dívidas', 'Investimento',\n  'Salário', 'Horas Extras', 'Auxílios', 'PLR', 'Outros',\n];\n\n// Como foi pago. Os cartões saem da aba Cartoes; o resto é fixo.\nconst SEM_CARTAO = ['Débito', 'Pix', 'Dinheiro', 'VA', 'Boleto', 'Não informado'];\n\nconst src = $('Triagem').first().json;\n\nconst cartoes = $('Ler cartões').all()\n  .map((i) => String(i.json.nome || '').trim())\n  .filter(Boolean);\n\nconst fixos = $('Ler gastos fixos').all()\n  .map((i) => i.json)\n  .filter((f) => String(f.ativo || 'sim').toLowerCase() !== 'nao'\n               && String(f.ativo || 'sim').toLowerCase() !== 'não')\n  .map((f) => String(f.nome || '').trim())\n  .filter(Boolean);\n\nconst FORMAS = [...cartoes, ...SEM_CARTAO];\n\nconst prompt = [\n  'Voce extrai lancamentos financeiros de mensagens em portugues do Brasil.',\n  'Hoje e ' + src.hoje + ' (fuso America/Sao_Paulo).',\n  '',\n  'Devolva um lancamento para CADA gasto ou recebimento citado na mensagem.',\n  '\"padaria 12 e farmacia 30\" sao DOIS lancamentos, nunca um de 42.',\n  'Se a mensagem nao registra dinheiro, devolva a lista vazia.',\n  'Registre apenas o que JA aconteceu. Lembrete e intencao futura nao sao',\n  'lancamento: \"lembra de pagar\", \"preciso pagar\", \"vou pagar\", \"vence sexta\"',\n  '-> lista vazia.',\n  'Compra parcelada, porem, JA aconteceu: registre UMA parcela, com o valor',\n  'da parcela, e escreva as parcelas na descricao (ex.: \"Fone 1/12\").',\n  '',\n  'Categorias permitidas: ' + CATEGORIAS.join(', ') + '.',\n  'Formas de pagamento permitidas: ' + FORMAS.join(', ') + '.',\n  fixos.length ? 'Gastos fixos da casa: ' + fixos.join(', ') + '.' : '',\n  '',\n  'Regras:',\n  '- tipo = entrada SOMENTE com verbo explicito de dinheiro que entrou: recebi,',\n  '  caiu, entrou, ganhei, vendi, salario, pix recebido, reembolso, estorno.',\n  '- tipo = investimento para aporte: apliquei, investi, guardei, reserva.',\n  '- todo o resto e saida, inclusive comprar presente para alguem. Na duvida, saida.',\n  '- valor sempre positivo, em reais, com ponto como separador decimal.',\n  '- forma: use o cartao citado (\"no nubank\" -> o cartao do Nubank de quem enviou).',\n  '  Sem forma citada, use \"Não informado\". Nunca invente cartao.',\n  '- uma forma citada uma vez vale para TODOS os gastos da mensagem:',\n  '  \"mercado 85 e uber 23 no pix\" sao dois lancamentos, ambos no Pix.',\n  '- resolva datas relativas (\"ontem\", \"sexta\") contra a data de hoje.',\n  '  Sem data explicita, use hoje.',\n  '- categoria obrigatoriamente uma da lista. Se nada encaixar, use Outros.',\n  '- fixo: se o lancamento paga um dos gastos fixos da casa, escreva o nome dele',\n  '  exatamente como esta na lista. Caso contrario, string vazia.',\n  '- descricao curta, ate 40 caracteres, com o estabelecimento quando houver.',\n  '- confianca de 0 a 1: quao seguro voce esta do valor, da categoria e da forma.',\n  '- nunca invente valor.',\n  '',\n  'Quem enviou: ' + src.pessoa,\n  'Mensagem: ' + src.texto,\n].filter(Boolean).join('\\n');\n\nconst payload = {\n  contents: [{ role: 'user', parts: [{ text: prompt }] }],\n  generationConfig: {\n    temperature: 0,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'object',\n      properties: {\n        lancamentos: {\n          type: 'array',\n          items: {\n            type: 'object',\n            properties: {\n              tipo:      { type: 'string', enum: ['saida', 'entrada', 'investimento'] },\n              valor:     { type: 'number' },\n              data:      { type: 'string' },\n              categoria: { type: 'string', enum: CATEGORIAS },\n              forma:     { type: 'string', enum: FORMAS },\n              descricao: { type: 'string' },\n              fixo:      { type: 'string' },\n              confianca: { type: 'number' },\n            },\n            required: ['tipo', 'valor', 'data', 'categoria', 'forma', 'descricao', 'fixo', 'confianca'],\n          },\n        },\n      },\n      required: ['lancamentos'],\n    },\n  },\n};\n\nreturn [{ json: {\n  ...src,\n  categorias: CATEGORIAS,\n  formas: FORMAS,\n  cartoes: $('Ler cartões').all().map((i) => i.json),\n  fixos: $('Ler gastos fixos').all().map((i) => i.json),\n  payload,\n}}];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000640",
+      "name": "Montar prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
         300
       ]
     },
@@ -60,25 +135,25 @@
           "timeout": 20000
         }
       },
-      "id": "a1000000-0000-4000-8000-000000000003",
+      "id": "a1000000-0000-4000-8000-000000000006",
       "name": "Gemini",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        280,
+        880,
         300
       ]
     },
     {
       "parameters": {
-        "jsCode": "const src  = $('Triagem e prompt').first().json;\nconst resp = $input.first().json;\n\nlet p;\ntry {\n  p = JSON.parse(resp.candidates[0].content.parts[0].text);\n} catch (e) {\n  return [];                       // modelo devolveu algo ilegivel: ignora\n}\nif (!p.eh_lancamento) return [];   // nao era um lancamento: silencio\n\n// valor\nconst valor = Math.round(Number(p.valor) * 100) / 100;\nif (!isFinite(valor) || valor <= 0) return [];\n\n// data: aceita so YYYY-MM-DD, senao cai para hoje\nconst data = /^\\d{4}-\\d{2}-\\d{2}$/.test(p.data) ? p.data : src.hoje;\n\n// categoria: obriga a estar na lista\nconst categoria = src.categorias.includes(p.categoria) ? p.categoria : 'Outros';\n\nreturn [{ json: {\n  update_id:  src.update_id,\n  data,\n  competencia: data.slice(0, 7),          // YYYY-MM, o que o dashboard agrupa\n  criado_em:  new Date().toISOString(),\n  tipo:       p.tipo === 'entrada' ? 'entrada' : 'saida',\n  valor,\n  categoria,\n  descricao:  String(p.descricao || '').slice(0, 60),\n  pessoa:     src.pessoa,\n  mensagem:   src.texto,\n  confianca:  Math.round(Number(p.confianca || 0) * 100) / 100\n}}];\n"
+        "jsCode": "// Dinheiro é determinístico: o modelo propõe, aqui a casa decide.\n// Emite uma linha por lançamento — o nó do Sheets grava todas de uma vez.\n\nconst src = $('Montar prompt').first().json;\nconst resp = $input.first().json;\n\n// tira acento e caixa para comparar o que o modelo devolveu com as listas\nconst norm = (s) => String(s || '')\n  .normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase().trim();\n\nconst acharNaLista = (valor, lista) => {\n  const alvo = norm(valor);\n  return lista.find((x) => norm(x) === alvo) || null;\n};\n\nlet p;\ntry {\n  p = JSON.parse(resp.candidates[0].content.parts[0].text);\n} catch (e) {\n  return [];                          // modelo devolveu algo ilegivel: ignora\n}\nconst itens = Array.isArray(p.lancamentos) ? p.lancamentos : [];\nif (!itens.length) return [];         // nao era lancamento: silencio\n\n// dia de fechamento e de vencimento por cartao, vindos da aba Cartoes\nconst cartoes = {};\nfor (const c of src.cartoes || []) {\n  const nome = String(c.nome || '').trim();\n  if (!nome) continue;\n  cartoes[norm(nome)] = {\n    nome,\n    fechamento: Number(c.dia_fechamento) || 0,\n    vencimento: Number(c.dia_vencimento) || 0,\n  };\n}\n\nconst fixosPorNome = {};\nfor (const f of src.fixos || []) {\n  const nome = String(f.nome || '').trim();\n  if (nome) fixosPorNome[norm(nome)] = { nome, categoria: String(f.categoria || '').trim() };\n}\nconst nomesFixos = Object.values(fixosPorNome).map((f) => f.nome);\n\n// Em que fatura esse gasto cai. Devolve a competencia do VENCIMENTO — que é o\n// mes em que o dinheiro sai da conta, e é assim que a planilha da casa pensa.\nfunction competenciaFatura(data, cartao) {\n  if (!cartao || !cartao.fechamento) return '';\n  const [ano, mes, dia] = data.split('-').map(Number);\n  // gasto depois do fechamento entra na fatura que fecha no mes seguinte\n  let mesFecha = dia <= cartao.fechamento ? mes : mes + 1;\n  // vencimento antes do fechamento significa que a fatura vence no mes seguinte\n  let mesVence = cartao.vencimento > cartao.fechamento ? mesFecha : mesFecha + 1;\n  let anoVence = ano;\n  while (mesVence > 12) { mesVence -= 12; anoVence += 1; }\n  return `${anoVence}-${String(mesVence).padStart(2, '0')}`;\n}\n\nconst saida = [];\nfor (const item of itens) {\n  const valor = Math.round(Number(item.valor) * 100) / 100;\n  if (!isFinite(valor) || valor <= 0) continue;\n\n  const data = /^\\d{4}-\\d{2}-\\d{2}$/.test(item.data) ? item.data : src.hoje;\n  const forma = acharNaLista(item.forma, src.formas) || 'Não informado';\n  const fixo = acharNaLista(item.fixo, nomesFixos) || '';\n\n  // gasto fixo tem categoria cadastrada na planilha: ela vale mais que o palpite\n  // do modelo, que ja chamou \"internet\" de Assinaturas e de Moradia\n  const catDoFixo = fixo ? fixosPorNome[norm(fixo)].categoria : '';\n  const categoria = acharNaLista(catDoFixo, src.categorias)\n                 || acharNaLista(item.categoria, src.categorias)\n                 || 'Outros';\n  const tipo = ['entrada', 'investimento'].includes(item.tipo) ? item.tipo : 'saida';\n\n  saida.push({ json: {\n    update_id: src.update_id,\n    data,\n    competencia: data.slice(0, 7),      // o mes do gasto, para o orcamento\n    competencia_fatura: competenciaFatura(data, cartoes[norm(forma)]),\n    criado_em: new Date().toISOString(),\n    tipo,\n    valor,\n    categoria,\n    forma,\n    descricao: String(item.descricao || '').slice(0, 60),\n    pessoa: src.pessoa,\n    fixo,\n    mensagem: src.texto,\n    confianca: Math.round(Number(item.confianca || 0) * 100) / 100,\n  }});\n}\n\nreturn saida;\n"
       },
-      "id": "a1000000-0000-4000-8000-000000000004",
+      "id": "a1000000-0000-4000-8000-000000001120",
       "name": "Validar",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        520,
+        1120,
         300
       ]
     },
@@ -103,12 +178,12 @@
         "options": {},
         "authentication": "serviceAccount"
       },
-      "id": "a1000000-0000-4000-8000-000000000005",
+      "id": "a1000000-0000-4000-8000-000000000008",
       "name": "Gravar na planilha",
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.5,
       "position": [
-        760,
+        1360,
         300
       ],
       "credentials": {
@@ -120,19 +195,32 @@
     },
     {
       "parameters": {
-        "chatId": "={{ $('Triagem e prompt').first().json.chat_id }}",
-        "text": "={{ $('Validar').first().json.tipo === 'entrada' ? '✅ Entrada' : '✅ Saida' }} de R$ {{ $('Validar').first().json.valor.toFixed(2).replace('.', ',') }} · {{ $('Validar').first().json.categoria }}",
+        "jsCode": "// Uma mensagem só no grupo, mesmo quando a mensagem original tinha vários gastos.\n// Confirmar cada lançamento separado transformaria o grupo num log.\n\nconst linhas = $input.all().map((i) => i.json);\nif (!linhas.length) return [];\n\nconst src = $('Montar prompt').first().json;\nconst brl = (v) => 'R$ ' + v.toFixed(2).replace('.', ',');\nconst sinal = { saida: '−', entrada: '+', investimento: '↗' };\n\nconst total = linhas.reduce((a, l) => a + (l.tipo === 'entrada' ? l.valor : -l.valor), 0);\nconst duvidoso = linhas.some((l) => l.confianca < 0.7);\n\nlet texto;\nif (linhas.length === 1) {\n  const l = linhas[0];\n  texto = `${sinal[l.tipo]} ${brl(l.valor)} · ${l.categoria}`\n        + (l.forma !== 'Não informado' ? ` · ${l.forma}` : '')\n        + (l.fixo ? ` · fixo: ${l.fixo}` : '');\n} else {\n  texto = `${linhas.length} lançamentos\\n`\n        + linhas.map((l) => `${sinal[l.tipo]} ${brl(l.valor)} · ${l.categoria}`\n            + (l.forma !== 'Não informado' ? ` · ${l.forma}` : '')).join('\\n')\n        + `\\nsaldo da mensagem: ${brl(Math.abs(total))}`;\n}\nif (duvidoso) texto += '\\n⚠️ confira: não tive certeza de algum campo';\n\nreturn [{ json: {\n  chat_id: src.chat_id,\n  message_id: src.message_id,\n  texto_resposta: texto,\n}}];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000001600",
+      "name": "Resumo da resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto_resposta }}",
         "additionalFields": {
-          "reply_to_message_id": "={{ $('Triagem e prompt').first().json.message_id }}",
+          "reply_to_message_id": "={{ $json.message_id }}",
           "appendAttribution": false
         }
       },
-      "id": "a1000000-0000-4000-8000-000000000006",
+      "id": "a1000000-0000-4000-8000-000000000010",
       "name": "Confirmar no grupo",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1000,
+        1840,
         300
       ],
       "credentials": {
@@ -148,14 +236,47 @@
       "main": [
         [
           {
-            "node": "Triagem e prompt",
+            "node": "Triagem",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Triagem e prompt": {
+    "Triagem": {
+      "main": [
+        [
+          {
+            "node": "Ler cartões",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler cartões": {
+      "main": [
+        [
+          {
+            "node": "Ler gastos fixos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler gastos fixos": {
+      "main": [
+        [
+          {
+            "node": "Montar prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar prompt": {
       "main": [
         [
           {
@@ -189,6 +310,17 @@
       ]
     },
     "Gravar na planilha": {
+      "main": [
+        [
+          {
+            "node": "Resumo da resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resumo da resposta": {
       "main": [
         [
           {
