@@ -14,9 +14,9 @@ Comece por `plano/01-mvp-simples.md` e siga o roteiro em
 plano/           as decisões e a pesquisa, em markdown
 docs-visuais/    os mesmos documentos em HTML, com diagramas e tabelas
 terraform/       a infra na Oracle Cloud Always Free — make up / stop / down
-n8n/             o workflow de ingestão, pronto para importar
+n8n/             o workflow de ingestão; os code nodes ficam em n8n/nos/*.js
 dashboard/       a página que lê a planilha publicada em CSV
-planilha/        o cabeçalho da aba Lancamentos
+planilha/        as cinco abas, com modelo e instruções
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 local/           n8n de ensaio no seu computador, sem HTTPS e sem VM
 scripts/         checar o bot, testar o parser e abrir o dashboard sem planilha
@@ -66,10 +66,10 @@ scripts/checar-bot.sh <token-do-bot>
 Ele imprime `CHAT_ID` e `MEMBROS` prontos para colar no nó *Triagem e prompt*.
 **Não pule este passo**: é o bloqueador nº 1 do projeto e custa um curl.
 
-**4. Planilha** — aba `Lancamentos` com o cabeçalho de `planilha/`. Criar uma
-service account no Google Cloud, habilitar a API do Sheets e **compartilhar a
-planilha com o e-mail da service account**. Publicar a aba como CSV
-(Arquivo → Compartilhar → Publicar na web) para o dashboard ler.
+**4. Planilha** — cinco abas: `Lancamentos` (o bot escreve), `Cartoes`,
+`GastosFixos`, `Dividas` e `PLR` (você mantém). O passo a passo está em
+`planilha/README.md`. Criar a service account no Google Cloud, habilitar a API
+do Sheets e **compartilhar a planilha com o e-mail dela**.
 
 **5. Infra** — `cd terraform && cp terraform.tfvars.example terraform.tfvars`,
 preencher, `make plan` (ler o plano) e `make up`. Assim que o certificado sair,
@@ -78,7 +78,7 @@ preencher, `make plan` (ler o plano) e `make up`. Assim que o certificado sair,
 **6. Workflow** — importar `n8n/gastos-ingestao.n8n.json`, ligar as credenciais,
 colar `CHAT_ID` e `MEMBROS` no nó *Triagem e prompt*, ativar.
 
-**7. Dashboard** — colar a URL do CSV em `CSV_URL` dentro de
+**7. Dashboard** — colar as URLs dos CSVs publicados no objeto `CSV` dentro de
 `dashboard/index.html` e publicar no GitHub Pages. Para ver a página funcionando
 antes de existir planilha, com lançamentos de exemplo:
 
@@ -99,15 +99,33 @@ scripts/dashboard-local.sh         # http://localhost:8899
 `N8N_ENCRYPTION_KEY` — é ela que cifra as credenciais do Telegram e do Google
 dentro do n8n. Se mudar, você refaz todas.
 
-## Depois de mexer no prompt
+## Mexendo no workflow
+
+Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
-node scripts/testar-nos.mjs && scripts/testar-parser.mjs
+node scripts/montar-workflow.mjs      # regera n8n/gastos-ingestao.n8n.json
+node scripts/testar-nos.mjs           # 31 testes offline, ~1s
+scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
 
-Os dois scripts leem o workflow e executam os **próprios code nodes** num
-sandbox — o que eles aprovam é o que roda em produção. Mudou o prompt ou a lista
-de categorias? Rode a suíte antes de ativar.
+Os dois scripts de teste leem o workflow e executam os **próprios code nodes**
+num sandbox — o que eles aprovam é o que roda em produção. Mudou o prompt, as
+categorias ou a regra de fatura? Rode os dois antes de ativar.
+
+## O que o bot entende
+
+| Você manda | Vira |
+|---|---|
+| `85 no mercado` | uma saída, categoria Mercado |
+| `padaria 12 e farmacia 30` | **dois** lançamentos, não um de 42 |
+| `mercado 85 e uber 23 no pix` | dois lançamentos, ambos no Pix |
+| `gasolina 200 no nubank` | saída no cartão, na fatura certa |
+| `paguei a internet 150 no debito` | quita o fixo `Internet`, categoria vinda da planilha |
+| `apliquei 400 na reserva` | investimento, que não conta como gasto |
+| `caiu o salário 7000` | entrada |
+| `vou pagar o aluguel amanha` | nada — intenção futura não é lançamento |
+| `te amo 3000` | nada |
 
 ## Critério de parada
 

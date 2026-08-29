@@ -18,33 +18,46 @@ Sem banco, sem multi-tenant, sem dívidas/objetivos. **Custo R$ 0/mês.**
 | Banco | Uma aba `Lancamentos` no Google Sheets | R$ 0 |
 | Dashboard | HTML estático no GitHub Pages lendo o CSV publicado | R$ 0 |
 
-## Planilha — aba `Lancamentos`
+## Planilha — cinco abas
 
-`update_id, data, competencia, criado_em, tipo, valor, categoria, descricao, pessoa, mensagem, confianca`
+`Lancamentos` (o bot escreve) + `Cartoes`, `GastosFixos`, `Dividas` e `PLR` (mantidas à mão). Detalhes e cabeçalhos em `planilha/README.md`.
 
-- `competencia` = `YYYY-MM`, escrita pelo n8n. É por ela que o dashboard agrupa — evita fórmula de data no Sheets.
-- `valor` sempre positivo, ponto decimal. `tipo` = `saida|entrada`.
-- Publicar a aba em **Arquivo → Compartilhar → Publicar na web → CSV** e guardar a URL (é o que o dashboard lê).
+`Lancamentos`: `update_id, data, competencia, competencia_fatura, criado_em, tipo, valor, categoria, forma, descricao, pessoa, fixo, mensagem, confianca`
 
-## Workflow n8n — 6 nós
+- **Duas competências, duas perguntas.** `competencia` = mês do gasto, responde "quanto consumimos em agosto". `competencia_fatura` = mês em que a fatura vence, responde "quanto sai da conta em setembro". A planilha da casa sempre pensou nas duas.
+- `forma` = um cartão da aba `Cartoes`, ou Débito/Pix/Dinheiro/VA/Boleto. **Os cartões saem da planilha, não do código**: adicionar um cartão é adicionar uma linha.
+- `tipo` = `saida|entrada|investimento`. Aporte não é gasto e não entra em "para onde foi o dinheiro".
+- `fixo` = nome do gasto fixo que a linha quitou. A categoria vem da aba `GastosFixos`, não do modelo — sem isso a mesma conta cairia em Assinaturas num mês e Moradia no outro.
+- `valor` sempre positivo, ponto decimal.
+- Publicar cada aba em **Arquivo → Compartilhar → Publicar na web → CSV** e colar as URLs no objeto `CSV` do dashboard.
 
-`Telegram Trigger → Triagem e prompt → Gemini → Validar → Gravar na planilha → Confirmar no grupo`
+## Workflow n8n — 10 nós
 
-- **Triagem e prompt** (Code): valida `chat.id` + `from.id`, idempotência via `$getWorkflowStaticData` (últimos 300 `update_id`), descarta mensagem sem número (sem gastar LLM), resolve hoje em `America/Sao_Paulo` com `toLocaleDateString('sv-SE')`, monta o prompt + `responseSchema`.
+`Telegram Trigger → Triagem → Ler cartões → Ler gastos fixos → Montar prompt → Gemini → Validar → Gravar na planilha → Resumo da resposta → Confirmar no grupo`
+
+Os code nodes vivem em `n8n/nos/*.js` e `scripts/montar-workflow.mjs` gera o JSON. JavaScript dentro de string JSON não se mantém: sem destaque de sintaxe, sem `node --check`, e um `\n` errado quebra tudo em silêncio.
+
+- **Triagem** (Code): valida `chat.id` + `from.id`, idempotência via `$getWorkflowStaticData` (últimos 300 `update_id`), descarta mensagem sem número — antes de gastar LLM **e antes de ler a planilha**, resolve hoje em `America/Sao_Paulo` com `toLocaleDateString('sv-SE')`.
+- **Ler cartões / Ler gastos fixos** (Sheets, `executeOnce`): as duas abas de configuração. Sem `executeOnce` o nó rodaria uma vez por item de entrada e leria a aba N vezes.
+- **Montar prompt** (Code): monta prompt e `responseSchema` com os enums vindos da planilha.
+- **O schema é uma lista.** "padaria 12 e farmacia 30" são dois lançamentos. Com um lançamento só, o modelo ou somava os dois numa categoria errada (42 em Alimentação) ou desistia — e o gasto sumia sem aviso.
+- **Resumo da resposta** (Code): uma mensagem só no grupo, mesmo com vários gastos. Confirmar cada lançamento separado transformaria o grupo num log.
 - **Gemini** (HTTP Request): chave via `{{ $env.GEMINI_API_KEY }}` — nunca dentro do workflow, dá para versionar o JSON.
-- **Validar** (Code): rejeita valor ≤ 0, força categoria da lista, calcula `competencia`.
+- **Validar** (Code): rejeita valor ≤ 0, força categoria e forma às listas (aceitando o que o modelo mandar sem acento), casa o gasto fixo e calcula as duas competências.
 - **Gravar na planilha**: append com `autoMapInputData` (as chaves do JSON batem com os cabeçalhos). Credencial por **service account**, não OAuth: app OAuth em modo de teste expira o refresh token em 7 dias e o bot pararia de gravar sozinho no dia 8. Basta compartilhar a planilha com o e-mail da conta de serviço.
 - Escolha deliberada: **HTTP Request em vez dos nós LangChain** — menos peças, independente de versão, `responseSchema` visível e editável.
 
-### Três constantes a ajustar no nó Triagem
-`CHAT_ID` (id negativo do grupo), `MEMBROS` (`from.id` → nome), `CATEGORIAS`.
-Descobrir os ids: rodar o Telegram Trigger em *Listen for test event* e ler `message.chat.id` e `message.from.id`.
+### Duas constantes a ajustar em `n8n/nos/triagem.js`
+`CHAT_ID` (id negativo do grupo) e `MEMBROS` (`from.id` → nome). Cartões, formas de pagamento e gastos fixos **não** são constantes: saem da planilha.
+Descobrir os ids sem subir nada: `scripts/checar-bot.sh <token>`.
 
 ## Testes
 
-`scripts/testar-nos.mjs` — 15 testes offline (sem rede, sem chave, ~1s): autorização por chat e por membro, idempotência, descarte sem dígito, valor ≤ 0, categoria fora da lista, data malformada, JSON ilegível do modelo, e se as chaves da linha ainda batem com as colunas da planilha.
+`scripts/testar-nos.mjs` — 31 testes offline (sem rede, sem chave, ~1s): autorização, idempotência, descarte sem dígito, valor ≤ 0, categoria e forma fora da lista, gasto fixo, ciclo de fatura nos quatro cartões, resumo no grupo, e se as chaves da linha ainda batem com as colunas da planilha.
 
-`scripts/testar-parser.mjs` — as 32 mensagens de `testes/mensagens.jsonl` contra o Gemini de verdade, incluindo os falsos positivos ("te amo 3000", "vou no mercado as 8").
+`scripts/testar-parser.mjs` — as 43 mensagens de `testes/mensagens.jsonl` contra o Gemini de verdade, incluindo os falsos positivos ("te amo 3000", "vou pagar o aluguel amanha").
+
+Três regras do prompt nasceram de falha real da suíte: forma citada uma vez vale para todos os gastos da mensagem; intenção futura não é lançamento; compra parcelada é.
 
 Nenhum dos dois reimplementa o prompt: eles leem o workflow e executam os próprios code nodes num sandbox. Rodar sempre que mexer no prompt ou nas categorias.
 
