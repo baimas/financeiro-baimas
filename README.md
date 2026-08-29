@@ -18,6 +18,9 @@ n8n/             o workflow de ingestão, pronto para importar
 dashboard/       a página que lê a planilha publicada em CSV
 planilha/        o cabeçalho da aba Lancamentos
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
+local/           n8n de ensaio no seu computador, sem HTTPS e sem VM
+scripts/         checar o bot e testar o parser antes de subir qualquer coisa
+testes/          32 mensagens reais com o resultado esperado
 ```
 
 ### plano/
@@ -32,20 +35,57 @@ stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 
 ## Ordem de execução
 
-1. **Bot** — BotFather, `/setprivacy` → **Disable**, criar o grupo, adicionar o bot.
-   Se o bot já estava no grupo, remova e adicione de novo.
-2. **Planilha** — aba `Lancamentos` com o cabeçalho de `planilha/`, publicar como CSV.
-3. **Chave do Gemini** — Google AI Studio.
-4. **Infra** — `cd terraform && cp terraform.tfvars.example terraform.tfvars`, preencher, `make init && make plan && make up`.
-5. **Workflow** — importar `n8n/gastos-ingestao.n8n.json`, ligar as credenciais,
-   ajustar `CHAT_ID` e `MEMBROS` no nó *Triagem e prompt*, ativar.
-6. **Dashboard** — colar a URL do CSV em `CSV_URL` dentro de `dashboard/index.html`
-   e publicar no GitHub Pages.
+A ideia é simples: **cada erro deve aparecer no lugar mais barato possível**.
+Erro de código aparece na sua máquina, não em cima de uma VM com o DNS já
+apontado.
+
+**1. Ensaio, sem conta nenhuma** — já feito e versionado:
+
+```bash
+node scripts/testar-nos.mjs        # 15 testes offline dos code nodes, ~1s
+cd terraform && make init && terraform validate
+cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
+```
+
+**2. Chave do Gemini** — [AI Studio](https://aistudio.google.com/apikey), grátis,
+2 minutos. Com ela, a suíte de mensagens roda:
+
+```bash
+export GEMINI_API_KEY=AIza...
+scripts/testar-parser.mjs          # 32 mensagens reais contra o parser de verdade
+```
+
+**3. Bot e grupo** — BotFather, `/setprivacy` → **Disable**, criar o grupo,
+adicionar o bot. Se o bot já estava no grupo, remova e adicione de novo.
+Mande `teste 85 mercado` no grupo e prove que chegou:
+
+```bash
+scripts/checar-bot.sh <token-do-bot>
+```
+
+Ele imprime `CHAT_ID` e `MEMBROS` prontos para colar no nó *Triagem e prompt*.
+**Não pule este passo**: é o bloqueador nº 1 do projeto e custa um curl.
+
+**4. Planilha** — aba `Lancamentos` com o cabeçalho de `planilha/`. Criar uma
+service account no Google Cloud, habilitar a API do Sheets e **compartilhar a
+planilha com o e-mail da service account**. Publicar a aba como CSV
+(Arquivo → Compartilhar → Publicar na web) para o dashboard ler.
+
+**5. Infra** — `cd terraform && cp terraform.tfvars.example terraform.tfvars`,
+preencher, `make plan` (ler o plano) e `make up`. Assim que o certificado sair,
+**abra o domínio e crie a conta de dono do n8n imediatamente**.
+
+**6. Workflow** — importar `n8n/gastos-ingestao.n8n.json`, ligar as credenciais,
+colar `CHAT_ID` e `MEMBROS` no nó *Triagem e prompt*, ativar.
+
+**7. Dashboard** — colar a URL do CSV em `CSV_URL` dentro de
+`dashboard/index.html` e publicar no GitHub Pages.
 
 ## As duas armadilhas
 
 - **Privacy mode do BotFather.** Se ficar ligado, a mensagem nunca chega ao
-  webhook e nenhum erro aparece em lugar nenhum.
+  webhook e nenhum erro aparece em lugar nenhum. `scripts/checar-bot.sh` existe
+  exatamente para isso.
 - **iptables da Oracle.** Abrir 80/443 na security list não basta; as imagens
   Ubuntu descartam tudo. O cloud-init do Terraform já resolve.
 
@@ -53,6 +93,16 @@ stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 
 `N8N_ENCRYPTION_KEY` — é ela que cifra as credenciais do Telegram e do Google
 dentro do n8n. Se mudar, você refaz todas.
+
+## Depois de mexer no prompt
+
+```bash
+node scripts/testar-nos.mjs && scripts/testar-parser.mjs
+```
+
+Os dois scripts leem o workflow e executam os **próprios code nodes** num
+sandbox — o que eles aprovam é o que roda em produção. Mudou o prompt ou a lista
+de categorias? Rode a suíte antes de ativar.
 
 ## Critério de parada
 

@@ -100,7 +100,8 @@
           "matchingColumns": [],
           "schema": []
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "a1000000-0000-4000-8000-000000000005",
       "name": "Gravar na planilha",
@@ -111,9 +112,9 @@
         300
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
+        "googleApi": {
           "id": "SUBSTITUA",
-          "name": "Google Sheets — gastos"
+          "name": "Google Service Account — gastos"
         }
       }
     },

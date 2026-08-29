@@ -33,12 +33,20 @@ Sem banco, sem multi-tenant, sem dívidas/objetivos. **Custo R$ 0/mês.**
 - **Triagem e prompt** (Code): valida `chat.id` + `from.id`, idempotência via `$getWorkflowStaticData` (últimos 300 `update_id`), descarta mensagem sem número (sem gastar LLM), resolve hoje em `America/Sao_Paulo` com `toLocaleDateString('sv-SE')`, monta o prompt + `responseSchema`.
 - **Gemini** (HTTP Request): chave via `{{ $env.GEMINI_API_KEY }}` — nunca dentro do workflow, dá para versionar o JSON.
 - **Validar** (Code): rejeita valor ≤ 0, força categoria da lista, calcula `competencia`.
-- **Gravar na planilha**: append com `autoMapInputData` (as chaves do JSON batem com os cabeçalhos).
+- **Gravar na planilha**: append com `autoMapInputData` (as chaves do JSON batem com os cabeçalhos). Credencial por **service account**, não OAuth: app OAuth em modo de teste expira o refresh token em 7 dias e o bot pararia de gravar sozinho no dia 8. Basta compartilhar a planilha com o e-mail da conta de serviço.
 - Escolha deliberada: **HTTP Request em vez dos nós LangChain** — menos peças, independente de versão, `responseSchema` visível e editável.
 
 ### Três constantes a ajustar no nó Triagem
 `CHAT_ID` (id negativo do grupo), `MEMBROS` (`from.id` → nome), `CATEGORIAS`.
 Descobrir os ids: rodar o Telegram Trigger em *Listen for test event* e ler `message.chat.id` e `message.from.id`.
+
+## Testes
+
+`scripts/testar-nos.mjs` — 15 testes offline (sem rede, sem chave, ~1s): autorização por chat e por membro, idempotência, descarte sem dígito, valor ≤ 0, categoria fora da lista, data malformada, JSON ilegível do modelo, e se as chaves da linha ainda batem com as colunas da planilha.
+
+`scripts/testar-parser.mjs` — as 32 mensagens de `testes/mensagens.jsonl` contra o Gemini de verdade, incluindo os falsos positivos ("te amo 3000", "vou no mercado as 8").
+
+Nenhum dos dois reimplementa o prompt: eles leem o workflow e executam os próprios code nodes num sandbox. Rodar sempre que mexer no prompt ou nas categorias.
 
 ## Bloqueadores conhecidos
 
