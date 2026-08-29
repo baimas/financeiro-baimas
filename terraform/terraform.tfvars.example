@@ -1,0 +1,30 @@
+# cp terraform.tfvars.example terraform.tfvars   e preencha.
+# terraform.tfvars tem segredo dentro — está no .gitignore.
+
+# ── OCI: copie do ~/.oci/config baixado no painel ────────────────────────────
+tenancy_ocid     = "ocid1.tenancy.oc1..aaaa..."
+user_ocid        = "ocid1.user.oc1..aaaa..."
+fingerprint      = "aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66:77:88:99"
+private_key_path = "~/.oci/oci_api_key.pem"
+region           = "sa-saopaulo-1"
+
+# Use o mesmo valor de tenancy_ocid para criar no compartment raiz
+compartment_ocid = "ocid1.tenancy.oc1..aaaa..."
+
+# ── máquina ──────────────────────────────────────────────────────────────────
+shape      = "VM.Standard.A1.Flex"   # plano B: "VM.Standard.E2.1.Micro"
+ocpus      = 2                       # ignorado nos shapes não-Flex
+memoria_gb = 12                      # ignorado nos shapes não-Flex
+ad_index   = 0                       # tente 1 e 2 se der "Out of host capacity"
+
+ssh_public_key = "ssh-ed25519 AAAA... voce@mac"
+meu_ip_ssh     = "0.0.0.0/0"         # melhor: "SEU.IP.FIXO.AQUI/32"
+
+# ── rede pública ─────────────────────────────────────────────────────────────
+ip_reservado = true
+
+# ── aplicação ────────────────────────────────────────────────────────────────
+dominio            = "gastos-casa.duckdns.org"
+gemini_api_key     = "AIza..."
+n8n_encryption_key = "gere com: openssl rand -hex 24"
+duckdns_token      = ""              # preencha para o IP se atualizar sozinho

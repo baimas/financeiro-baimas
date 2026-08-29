@@ -1,0 +1,4 @@
+update_id,data,competencia,criado_em,tipo,valor,categoria,descricao,pessoa,mensagem,confianca
+1,2026-08-27,2026-08,2026-08-27T21:04:11.000Z,saida,85.5,Mercado,Assai,Vini,gastei 85 50 no assai ontem,0.94
+2,2026-08-28,2026-08,2026-08-28T12:31:02.000Z,saida,32,Alimentacao,Almoco,Lidia,almoco 32,0.91
+3,2026-08-05,2026-08,2026-08-05T09:00:00.000Z,entrada,6200,Salario,Salario,Vini,caiu o salario 6200,0.99

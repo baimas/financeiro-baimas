@@ -1,0 +1,207 @@
+{
+  "name": "Gastos — ingestão Telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000001",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -200,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUBSTITUA",
+          "name": "Telegram — bot de gastos"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ── AJUSTE ESTES TRÊS VALORES ────────────────────────────────\nconst CHAT_ID  = -1001234567890;                 // id do grupo (negativo)\nconst MEMBROS  = { 111111111: 'Vini', 222222222: 'Lidia' };  // from.id -> nome\nconst CATEGORIAS = ['Mercado','Alimentacao','Transporte','Moradia','Saude',\n  'Educacao','Lazer','Assinaturas','Vestuario','Pets','Presentes',\n  'Investimento','Salario','Outros'];\n// ─────────────────────────────────────────────────────────────\n\nconst upd = $input.first().json;\nconst msg = upd.message || upd.edited_message;\nif (!msg) return [];\n\n// 1. autorizacao: precisa ser o grupo certo e um membro conhecido\nif (String(msg.chat.id) !== String(CHAT_ID)) return [];\nconst pessoa = MEMBROS[msg.from.id];\nif (!pessoa) return [];\n\n// 2. idempotencia: guarda os ultimos update_id na memoria do workflow\nconst st = $getWorkflowStaticData('global');\nst.vistos = st.vistos || [];\nif (st.vistos.includes(upd.update_id)) return [];\nst.vistos.push(upd.update_id);\nif (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);\n\n// 3. triagem: sem numero que pareca dinheiro, nao gasta LLM\nconst texto = (msg.text || msg.caption || '').trim();\nif (!texto) return [];\nif (!/\\d/.test(texto)) return [];\n\n// 4. data de hoje no fuso de Sao Paulo, formato YYYY-MM-DD\nconst hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });\n\nconst prompt = [\n  'Voce extrai lancamentos financeiros de mensagens em portugues do Brasil.',\n  'Hoje e ' + hoje + ' (fuso America/Sao_Paulo).',\n  'Categorias permitidas: ' + CATEGORIAS.join(', ') + '.',\n  '',\n  'Regras:',\n  '- eh_lancamento = false se a mensagem nao registra dinheiro gasto ou recebido.',\n  '- \"recebi\", \"caiu\", \"entrou\", \"salario\" e sinonimos = tipo entrada. O resto = saida.',\n  '- valor sempre positivo, em reais, usando ponto como separador decimal.',\n  '- resolva datas relativas (\"ontem\", \"sexta\") contra a data de hoje. Sem data explicita, use hoje.',\n  '- categoria obrigatoriamente uma da lista. Se nada encaixar, use Outros.',\n  '- descricao curta, ate 40 caracteres, com o estabelecimento quando houver.',\n  '- confianca de 0 a 1: quao seguro voce esta do valor e da categoria.',\n  '- nunca invente valor.',\n  '',\n  'Mensagem: ' + texto\n].join('\\n');\n\nconst payload = {\n  contents: [{ role: 'user', parts: [{ text: prompt }] }],\n  generationConfig: {\n    temperature: 0,\n    responseMimeType: 'application/json',\n    responseSchema: {\n      type: 'object',\n      properties: {\n        eh_lancamento: { type: 'boolean' },\n        tipo:          { type: 'string', enum: ['saida', 'entrada'] },\n        valor:         { type: 'number' },\n        data:          { type: 'string' },\n        categoria:     { type: 'string', enum: CATEGORIAS },\n        descricao:     { type: 'string' },\n        confianca:     { type: 'number' }\n      },\n      required: ['eh_lancamento','tipo','valor','data','categoria','descricao','confianca']\n    }\n  }\n};\n\nreturn [{ json: {\n  update_id: upd.update_id,\n  message_id: msg.message_id,\n  chat_id: msg.chat.id,\n  pessoa,\n  texto,\n  hoje,\n  categorias: CATEGORIAS,\n  payload\n}}];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000002",
+      "name": "Triagem e prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-goog-api-key",
+              "value": "={{ $env.GEMINI_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.payload) }}",
+        "options": {
+          "timeout": 20000
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000003",
+      "name": "Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const src  = $('Triagem e prompt').first().json;\nconst resp = $input.first().json;\n\nlet p;\ntry {\n  p = JSON.parse(resp.candidates[0].content.parts[0].text);\n} catch (e) {\n  return [];                       // modelo devolveu algo ilegivel: ignora\n}\nif (!p.eh_lancamento) return [];   // nao era um lancamento: silencio\n\n// valor\nconst valor = Math.round(Number(p.valor) * 100) / 100;\nif (!isFinite(valor) || valor <= 0) return [];\n\n// data: aceita so YYYY-MM-DD, senao cai para hoje\nconst data = /^\\d{4}-\\d{2}-\\d{2}$/.test(p.data) ? p.data : src.hoje;\n\n// categoria: obriga a estar na lista\nconst categoria = src.categorias.includes(p.categoria) ? p.categoria : 'Outros';\n\nreturn [{ json: {\n  update_id:  src.update_id,\n  data,\n  competencia: data.slice(0, 7),          // YYYY-MM, o que o dashboard agrupa\n  criado_em:  new Date().toISOString(),\n  tipo:       p.tipo === 'entrada' ? 'entrada' : 'saida',\n  valor,\n  categoria,\n  descricao:  String(p.descricao || '').slice(0, 60),\n  pessoa:     src.pessoa,\n  mensagem:   src.texto,\n  confianca:  Math.round(Number(p.confianca || 0) * 100) / 100\n}}];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000004",
+      "name": "Validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        520,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "SEU_SPREADSHEET_ID",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Lancamentos",
+          "mode": "name"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000005",
+      "name": "Gravar na planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        760,
+        300
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "SUBSTITUA",
+          "name": "Google Sheets — gastos"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Triagem e prompt').first().json.chat_id }}",
+        "text": "={{ $('Validar').first().json.tipo === 'entrada' ? '✅ Entrada' : '✅ Saida' }} de R$ {{ $('Validar').first().json.valor.toFixed(2).replace('.', ',') }} · {{ $('Validar').first().json.categoria }}",
+        "additionalFields": {
+          "reply_to_message_id": "={{ $('Triagem e prompt').first().json.message_id }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000006",
+      "name": "Confirmar no grupo",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1000,
+        300
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUBSTITUA",
+          "name": "Telegram — bot de gastos"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Triagem e prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Triagem e prompt": {
+      "main": [
+        [
+          {
+            "node": "Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini": {
+      "main": [
+        [
+          {
+            "node": "Validar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validar": {
+      "main": [
+        [
+          {
+            "node": "Gravar na planilha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gravar na planilha": {
+      "main": [
+        [
+          {
+            "node": "Confirmar no grupo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

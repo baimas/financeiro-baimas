@@ -1,0 +1,26 @@
+# ── segredos ─────────────────────────────────────────────────────────────────
+.env
+*.pem
+*.key
+credenciais*.json
+service-account*.json
+
+# ── Terraform ────────────────────────────────────────────────────────────────
+terraform.tfvars
+*.tfstate
+*.tfstate.*
+.terraform/
+.terraform.lock.hcl
+crash.log
+tfplan
+*.auto.tfvars
+
+# ── ambiente de ensaio local ─────────────────────────────────────────────────
+local/dados/
+local/.env
+
+# ── sistema ──────────────────────────────────────────────────────────────────
+.claude/settings.local.json
+.DS_Store
+node_modules/
+*.log

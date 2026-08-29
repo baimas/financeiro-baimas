@@ -1,0 +1,956 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>Blueprint do Agente de Gastos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --ground:#EFF2F0;
+  --surface:#FFFFFF;
+  --surface-2:#E7ECE9;
+  --ink:#101E1C;
+  --muted:#556660;
+  --rule:#D3DBD7;
+  --rule-soft:#E1E7E4;
+  --accent:#0E4C51;
+  --accent-ink:#0E4C51;
+  --accent-wash:#DCE9E9;
+  --in:#1F6B4C;
+  --out:#A83E29;
+  --warn:#8A5A08;
+  --shadow:0 1px 2px rgba(16,30,28,.06),0 8px 24px -16px rgba(16,30,28,.25);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B1413;
+    --surface:#111D1B;
+    --surface-2:#162422;
+    --ink:#E4EDEA;
+    --muted:#93A69F;
+    --rule:#233532;
+    --rule-soft:#1B2A28;
+    --accent:#63BCB4;
+    --accent-ink:#7FCFC6;
+    --accent-wash:#12302F;
+    --in:#5FC694;
+    --out:#E68A72;
+    --warn:#D9A94A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0B1413;
+  --surface:#111D1B;
+  --surface-2:#162422;
+  --ink:#E4EDEA;
+  --muted:#93A69F;
+  --rule:#233532;
+  --rule-soft:#1B2A28;
+  --accent:#63BCB4;
+  --accent-ink:#7FCFC6;
+  --accent-wash:#12302F;
+  --in:#5FC694;
+  --out:#E68A72;
+  --warn:#D9A94A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;
+  background:var(--ground);
+  color:var(--ink);
+  font-family:"Newsreader",Georgia,"Times New Roman",serif;
+  font-size:17.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.mono,code,kbd{font-family:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+/* ---------- shell ---------- */
+.shell{max-width:1240px;margin:0 auto;padding:0 24px 96px;display:grid;grid-template-columns:1fr;gap:0}
+@media (min-width:1080px){
+  .shell{grid-template-columns:212px minmax(0,1fr);gap:56px;padding-right:40px}
+}
+
+/* ---------- masthead ---------- */
+.masthead{grid-column:1/-1;padding:64px 0 40px;border-bottom:1px solid var(--rule)}
+.eyebrow{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 18px
+}
+h1{
+  font-family:"Archivo",system-ui,sans-serif;font-weight:700;
+  font-size:clamp(2.1rem,5.2vw,3.4rem);line-height:1.02;letter-spacing:-.03em;
+  margin:0 0 20px;text-wrap:balance;max-width:16ch
+}
+.standfirst{font-size:1.16rem;color:var(--muted);max-width:62ch;margin:0}
+.decisions{
+  display:flex;flex-wrap:wrap;gap:8px;margin-top:28px;list-style:none;padding:0
+}
+.decisions li{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;letter-spacing:.02em;
+  background:var(--surface);border:1px solid var(--rule);border-radius:999px;
+  padding:6px 13px;color:var(--muted)
+}
+.decisions li b{color:var(--ink);font-weight:600}
+
+/* ---------- nav ---------- */
+nav.toc{display:none}
+@media (min-width:1080px){
+  nav.toc{
+    display:block;position:sticky;top:0;align-self:start;
+    padding-top:44px;max-height:100vh;overflow-y:auto
+  }
+  nav.toc ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:2px}
+  nav.toc a{
+    display:flex;gap:10px;text-decoration:none;color:var(--muted);
+    font-family:"IBM Plex Mono",monospace;font-size:12px;line-height:1.35;
+    padding:6px 8px;border-radius:5px;border-left:2px solid transparent
+  }
+  nav.toc a:hover{color:var(--ink);background:var(--surface)}
+  nav.toc a span{color:var(--accent-ink);font-variant-numeric:tabular-nums}
+}
+
+/* ---------- sections ---------- */
+main{padding-top:44px;min-width:0}
+section{margin-bottom:72px;scroll-margin-top:24px}
+h2{
+  font-family:"Archivo",system-ui,sans-serif;font-weight:600;
+  font-size:1.62rem;letter-spacing:-.02em;line-height:1.15;
+  margin:0 0 20px;padding-bottom:12px;border-bottom:1px solid var(--rule);
+  display:flex;align-items:baseline;gap:14px;text-wrap:balance
+}
+h2 .num{
+  font-family:"IBM Plex Mono",monospace;font-size:.72em;font-weight:500;
+  color:var(--accent-ink);font-variant-numeric:tabular-nums;flex:none
+}
+h3{
+  font-family:"Archivo",system-ui,sans-serif;font-weight:600;font-size:1.06rem;
+  letter-spacing:-.005em;margin:34px 0 10px
+}
+h4{
+  font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px
+}
+p{margin:0 0 16px;max-width:70ch}
+main ul,main ol{max-width:70ch;padding-left:20px;margin:0 0 16px}
+main li{margin-bottom:7px}
+strong{font-weight:600}
+a{color:var(--accent-ink)}
+code{
+  font-size:.84em;background:var(--surface-2);border:1px solid var(--rule-soft);
+  border-radius:4px;padding:1px 5px
+}
+
+/* ---------- callout ---------- */
+.note{
+  background:var(--surface);border:1px solid var(--rule);border-radius:8px;
+  padding:18px 20px;margin:24px 0;box-shadow:var(--shadow);max-width:72ch
+}
+.note p:last-child{margin-bottom:0}
+.note .tag{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:8px
+}
+.note.alert .tag{color:var(--warn)}
+
+/* ---------- figures ---------- */
+figure{margin:30px 0;padding:0}
+figure svg{display:block;width:100%;height:auto;color:var(--ink)}
+.figframe{
+  background:var(--surface);border:1px solid var(--rule);border-radius:8px;
+  padding:20px 18px;overflow-x:auto;box-shadow:var(--shadow)
+}
+figcaption{
+  margin-top:12px;font-size:.88rem;color:var(--muted);max-width:70ch;line-height:1.5
+}
+.sv-box{fill:var(--surface-2);stroke:var(--rule);stroke-width:1.25}
+.sv-box-key{fill:var(--accent-wash);stroke:var(--accent);stroke-width:1.5}
+.sv-t{font-family:"Archivo",system-ui,sans-serif;font-size:13px;font-weight:600;fill:var(--ink)}
+.sv-s{font-family:"IBM Plex Mono",monospace;font-size:10.5px;fill:var(--muted)}
+.sv-l{font-family:"IBM Plex Mono",monospace;font-size:10.5px;fill:var(--accent-ink)}
+.sv-line{stroke:var(--ink);stroke-width:1.25;fill:none;opacity:.55}
+.sv-line-key{stroke:var(--accent);stroke-width:1.6;fill:none}
+
+/* ---------- tables ---------- */
+.tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--rule);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th{
+  text-align:left;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  padding:12px 16px;border-bottom:1px solid var(--rule);white-space:nowrap
+}
+td{padding:12px 16px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.num{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pill{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;padding:2px 8px;border-radius:999px;
+  border:1px solid currentColor;white-space:nowrap
+}
+.pill.in{color:var(--in)}
+.pill.out{color:var(--out)}
+.pill.warn{color:var(--warn)}
+
+/* ---------- code ---------- */
+pre{
+  background:var(--surface);border:1px solid var(--rule);border-radius:8px;
+  padding:18px 20px;overflow-x:auto;margin:20px 0;
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;line-height:1.62;
+  color:var(--ink);box-shadow:var(--shadow)
+}
+pre code{background:none;border:none;padding:0;font-size:inherit}
+.cmt{color:var(--muted)}
+.kw{color:var(--accent-ink);font-weight:500}
+
+/* ---------- phases ---------- */
+.phases{list-style:none;padding:0;margin:24px 0;max-width:none;display:flex;flex-direction:column;gap:0}
+.phases li{
+  display:grid;grid-template-columns:88px minmax(0,1fr);gap:20px;
+  padding:22px 0;border-top:1px solid var(--rule);margin:0
+}
+.phases li:last-child{border-bottom:1px solid var(--rule)}
+.ph-id{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--accent-ink);line-height:1.5}
+.ph-id b{display:block;font-size:15px;color:var(--ink);font-weight:600;letter-spacing:-.01em}
+.ph-body h3{margin:0 0 6px;font-size:1.05rem}
+.ph-body p{margin:0 0 10px;font-size:.98rem}
+.ph-done{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);
+  border-left:2px solid var(--accent);padding-left:12px;line-height:1.5
+}
+
+footer{
+  grid-column:1/-1;border-top:1px solid var(--rule);padding-top:22px;margin-top:24px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)
+}
+footer a{color:var(--muted)}
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Arquitetura &middot; v1 &middot; agosto 2026</p>
+    <h1>Blueprint do Agente de Gastos</h1>
+    <p class="standfirst">Um bot que vive num grupo fechado do Telegram com você e sua esposa, entende linguagem natural dos dois, grava cada lançamento num banco relacional e devolve leitura financeira &mdash; com um dashboard próprio por cima. Uso do casal primeiro, com o modelo de dados já pronto para virar SaaS.</p>
+    <ul class="decisions">
+      <li><b>Entrada</b> grupo do casal</li>
+      <li><b>Fonte de verdade</b> Postgres</li>
+      <li><b>Sheets</b> espelho</li>
+      <li><b>Orquestração</b> n8n</li>
+      <li><b>Front</b> Next.js</li>
+      <li><b>Tenant</b> household</li>
+    </ul>
+  </header>
+
+  <nav class="toc" aria-label="Seções">
+    <ol>
+      <li><a href="#principios"><span>01</span> Princípios</a></li>
+      <li><a href="#arquitetura"><span>02</span> Arquitetura</a></li>
+      <li><a href="#fluxos"><span>03</span> Fluxos</a></li>
+      <li><a href="#dados"><span>04</span> Modelo de dados</a></li>
+      <li><a href="#agente"><span>05</span> O agente</a></li>
+      <li><a href="#insights"><span>06</span> Insights</a></li>
+      <li><a href="#stack"><span>07</span> Stack e custo</a></li>
+      <li><a href="#roadmap"><span>08</span> Roadmap</a></li>
+      <li><a href="#riscos"><span>09</span> Riscos e não-escopo</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+    <!-- ============ 01 ============ -->
+    <section id="principios">
+      <h2><span class="num">01</span> Princípios que decidem o resto</h2>
+
+      <p>Quatro regras eliminam a maior parte das dúvidas de implementação mais adiante. Vale fixá-las antes de escrever qualquer linha.</p>
+
+      <h3>1. Dinheiro é determinístico. O LLM não calcula.</h3>
+      <p>O modelo faz duas coisas: transforma texto livre em um registro estruturado, e transforma números já calculados em uma frase em português. Toda soma, média, projeção e comparação sai de SQL. Um LLM que soma gastos erra silenciosamente, e erro silencioso em finanças destrói a confiança no produto inteiro.</p>
+
+      <h3>2. Postgres é a fonte de verdade; o Sheets é uma projeção.</h3>
+      <p>Você continua abrindo a planilha, ela continua com abas mensais e as categorias que já usa &mdash; mas ela passa a ser gerada, não editada. O caminho é sempre <code>bot → banco → planilha</code>, nunca o contrário. Isso evita o problema clássico de duas fontes divergindo e permite consultas que o Sheets não sustenta (janelas móveis, projeções, séries por categoria).</p>
+
+      <h3>3. Todo lançamento nasce revisável.</h3>
+      <p>Cada registro guarda a mensagem original, a confiança do parser e um status. Uma classificação errada é corrigida em um toque no próprio Telegram, e a correção vira dado de treino para as regras de categorização. Sem isso, você abandona o bot na terceira vez que ele chamar mercado de lazer.</p>
+
+      <h3>4. O tenant é a casa, não a pessoa.</h3>
+      <p>Como o bot fica num grupo com você e sua esposa, a unidade de isolamento é a <strong>household</strong>, não o usuário. Toda tabela leva <code>household_id</code> com Row Level Security; cada lançamento leva também <code>member_id</code>, que registra quem lançou sem dividir a base. Os dois enxergam tudo &mdash; é uma finança conjunta &mdash; mas você consegue quebrar por pessoa quando quiser.</p>
+      <p>Esse desenho já é o desenho multi-tenant do SaaS: casal, família ou pessoa sozinha são todos uma household de um ou mais membros. Auth, onboarding e cobrança ficam para a Fase 5 &mdash; construir isso antes de vocês dois usarem por 60 dias é otimizar o problema errado.</p>
+    </section>
+
+    <!-- ============ 02 ============ -->
+    <section id="arquitetura">
+      <h2><span class="num">02</span> Arquitetura</h2>
+
+      <p>Seis componentes, dois deles opcionais no começo. O n8n é o único ponto que orquestra: ele recebe o webhook, chama o LLM, escreve no banco, responde no Telegram e dispara os jobs periódicos.</p>
+
+      <figure>
+        <div class="figframe">
+          <svg viewBox="0 0 940 430" role="img" aria-label="Diagrama de componentes: o Telegram envia mensagens por webhook ao n8n, que chama a API do LLM para parsear e escreve no Postgres; o Postgres espelha para o Google Sheets e alimenta o dashboard Next.js; um cron no n8n dispara os insights periódicos.">
+            <defs>
+              <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity=".55"/>
+              </marker>
+              <marker id="ark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+              </marker>
+            </defs>
+
+            <rect class="sv-box" x="20" y="170" width="150" height="70" rx="6"/>
+            <text class="sv-t" x="95" y="197" text-anchor="middle">Grupo</text>
+            <text class="sv-s" x="95" y="215" text-anchor="middle">bot + 2 membros</text>
+
+            <rect class="sv-box-key" x="250" y="155" width="190" height="100" rx="6"/>
+            <text class="sv-t" x="345" y="188" text-anchor="middle">n8n</text>
+            <text class="sv-s" x="345" y="207" text-anchor="middle">ingestão · pergunta</text>
+            <text class="sv-s" x="345" y="224" text-anchor="middle">insights · sync</text>
+
+            <rect class="sv-box" x="250" y="30" width="190" height="62" rx="6"/>
+            <text class="sv-t" x="345" y="56" text-anchor="middle">LLM API</text>
+            <text class="sv-s" x="345" y="75" text-anchor="middle">extrai e narra</text>
+
+            <rect class="sv-box-key" x="520" y="155" width="180" height="100" rx="6"/>
+            <text class="sv-t" x="610" y="188" text-anchor="middle">Postgres</text>
+            <text class="sv-s" x="610" y="207" text-anchor="middle">Supabase · RLS</text>
+            <text class="sv-s" x="610" y="224" text-anchor="middle">fonte de verdade</text>
+
+            <rect class="sv-box" x="775" y="30" width="150" height="62" rx="6"/>
+            <text class="sv-t" x="850" y="56" text-anchor="middle">Sheets</text>
+            <text class="sv-s" x="850" y="75" text-anchor="middle">espelho</text>
+
+            <rect class="sv-box" x="775" y="190" width="150" height="62" rx="6"/>
+            <text class="sv-t" x="850" y="216" text-anchor="middle">SaaS</text>
+            <text class="sv-s" x="850" y="235" text-anchor="middle">Next.js</text>
+
+            <rect class="sv-box" x="20" y="340" width="150" height="58" rx="6"/>
+            <text class="sv-t" x="95" y="365" text-anchor="middle">Cron</text>
+            <text class="sv-s" x="95" y="383" text-anchor="middle">agenda n8n</text>
+
+            <line class="sv-line-key" x1="172" y1="190" x2="246" y2="190" marker-end="url(#ark)"/>
+            <text class="sv-l" x="209" y="182" text-anchor="middle">webhook</text>
+
+            <line class="sv-line" x1="246" y1="222" x2="172" y2="222" marker-end="url(#ar)"/>
+            <text class="sv-s" x="209" y="240" text-anchor="middle">resposta</text>
+
+            <line class="sv-line" x1="322" y1="151" x2="322" y2="96" marker-end="url(#ar)"/>
+            <text class="sv-s" x="314" y="127" text-anchor="end">texto</text>
+
+            <line class="sv-line" x1="370" y1="96" x2="370" y2="151" marker-end="url(#ar)"/>
+            <text class="sv-s" x="378" y="127" text-anchor="start">JSON</text>
+
+            <line class="sv-line-key" x1="444" y1="205" x2="516" y2="205" marker-end="url(#ark)"/>
+            <text class="sv-l" x="480" y="197" text-anchor="middle">SQL</text>
+
+            <polyline class="sv-line" points="704,180 738,180 738,61 771,61" marker-end="url(#ar)"/>
+            <text class="sv-s" x="746" y="124" text-anchor="start">sync</text>
+
+            <line class="sv-line" x1="704" y1="221" x2="771" y2="221" marker-end="url(#ar)"/>
+            <text class="sv-s" x="737" y="213" text-anchor="middle">leitura</text>
+
+            <polyline class="sv-line" points="172,369 345,369 345,259" marker-end="url(#ar)"/>
+            <text class="sv-s" x="255" y="361" text-anchor="middle">diário / semanal / mensal</text>
+          </svg>
+        </div>
+        <figcaption>O n8n é o único componente que fala com todos os outros. O Sheets fica fora do caminho crítico &mdash; se a sincronização falhar, nenhum lançamento se perde, porque ele é escrito a partir do banco e não o contrário.</figcaption>
+      </figure>
+
+      <h4>O que cada peça faz</h4>
+      <ul>
+        <li><strong>Grupo do Telegram</strong> &mdash; entrada única, com você, sua esposa e o bot. Texto, voz (transcrita) e foto de comprovante entram pelo mesmo webhook, de qualquer um dos dois. Os botões inline (<em>inline keyboard</em>) fazem a confirmação e a correção de categoria sem digitar.</li>
+        <li><strong>n8n</strong> &mdash; quatro workflows separados: <code>ingest</code>, <code>ask</code>, <code>insights-cron</code>, <code>sheets-sync</code>. Separados porque falham por motivos diferentes e você vai querer reexecutar um sem o outro.</li>
+        <li><strong>LLM API</strong> &mdash; chamado com <em>structured output</em> na ingestão e com <em>tool calling</em> nas perguntas. Nunca recebe a base inteira no contexto.</li>
+        <li><strong>Postgres</strong> &mdash; tabelas transacionais, <em>views</em> materializadas para as métricas e RLS por <code>household_id</code>.</li>
+        <li><strong>Sheets</strong> &mdash; aba por mês, reescrita a partir de uma view. Serve para conferência manual e para quando você quiser mexer numa tabela dinâmica.</li>
+        <li><strong>Next.js</strong> &mdash; dashboard. Lê o Supabase direto no servidor, sem API intermediária no MVP.</li>
+      </ul>
+    </section>
+
+    <!-- ============ 03 ============ -->
+    <section id="fluxos">
+      <h2><span class="num">03</span> Os quatro fluxos</h2>
+
+      <h3>3.0 O grupo &mdash; três coisas que só aparecem em grupo</h3>
+      <p>Um bot num grupo se comporta de forma diferente de um bot em conversa privada, e três detalhes decidem se isso funciona ou irrita.</p>
+
+      <div class="note alert">
+        <span class="tag">O bloqueador</span>
+        <p><strong>Privacy mode.</strong> Por padrão, um bot em grupo só recebe comandos (<code>/algo</code>), respostas a ele mesmo e menções &mdash; mensagem solta como "85 no mercado" simplesmente não chega no webhook. É preciso desligar isso no BotFather: <code>/setprivacy</code> → escolher o bot → <strong>Disable</strong>, e então <strong>remover e readicionar o bot ao grupo</strong> para a mudança valer. Sem esse passo, nada do resto funciona e o sintoma é silêncio, não erro.</p>
+      </div>
+
+      <p><strong>Quem falou importa.</strong> Em grupo, <code>chat.id</code> identifica a conversa e <code>from.id</code> identifica a pessoa. O <code>chat.id</code> autorizado é um só (o grupo de vocês) e o <code>from.id</code> é validado contra a tabela <code>household_members</code>. Mensagem de alguém fora da lista &mdash; se um dia o grupo ganhar mais um membro &mdash; é ignorada em silêncio, e nunca vira lançamento. Cada transação guarda o <code>member_id</code> de quem lançou.</p>
+
+      <p><strong>Nem toda mensagem é um lançamento.</strong> Num grupo de casal passa "bom dia", "compra pão" e conversa comum. Antes de gastar uma chamada de LLM, uma triagem barata em regex decide: tem número que parece dinheiro, ou é uma pergunta dirigida ao bot? Se não for nenhum dos dois, descarta em silêncio &mdash; sem responder, sem custo. Isso corta a maior parte do tráfego do grupo e é o que evita que o bot vire ruído.</p>
+
+      <div class="note">
+        <span class="tag">Resposta discreta</span>
+        <p>Confirmar cada lançamento com uma mensagem transforma o grupo em log. Melhor: gravou com confiança alta, o bot apenas <strong>reage com emoji</strong> na mensagem original (<code>setMessageReaction</code>). Mensagem de verdade só quando há algo a decidir (confirmação, correção) ou algo a avisar (alerta, resumo) &mdash; e sempre como <em>reply</em> à mensagem original, para o histórico do grupo continuar legível.</p>
+      </div>
+
+      <p><strong>A saída de emergência:</strong> como o mesmo bot também aceita conversa privada, um lançamento mandado na DM entra na mesma household com <code>visibility = 'privado'</code> &mdash; entra no total do mês, some da lista detalhada. Serve para o presente de aniversário. É uma coluna e um filtro; se não fizer sentido para vocês, ignore.</p>
+
+      <h3>3.1 Ingestão &mdash; da mensagem ao lançamento</h3>
+      <p>É o fluxo que precisa ser rápido e à prova de erro. Meta: da mensagem enviada à confirmação de volta, menos de cinco segundos.</p>
+
+      <figure>
+        <div class="figframe">
+          <svg viewBox="0 0 960 330" role="img" aria-label="Pipeline de ingestão: mensagem do grupo passa por uma triagem que descarta conversa comum; o que parece lançamento vai ao parse do LLM e à validação; com confiança alta é gravado direto, com confiança baixa o bot pede confirmação no grupo antes de gravar.">
+            <defs>
+              <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+                <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity=".55"/>
+              </marker>
+            </defs>
+
+            <rect class="sv-box" x="10" y="30" width="152" height="56" rx="6"/>
+            <text class="sv-t" x="86" y="55" text-anchor="middle">Mensagem</text>
+            <text class="sv-s" x="86" y="73" text-anchor="middle">de um dos dois</text>
+
+            <rect class="sv-box" x="220" y="30" width="152" height="56" rx="6"/>
+            <text class="sv-t" x="296" y="55" text-anchor="middle">Triagem</text>
+            <text class="sv-s" x="296" y="73" text-anchor="middle">regex · sem custo</text>
+
+            <rect class="sv-box" x="430" y="30" width="152" height="56" rx="6"/>
+            <text class="sv-t" x="506" y="55" text-anchor="middle">Parse</text>
+            <text class="sv-s" x="506" y="73" text-anchor="middle">LLM · schema fixo</text>
+
+            <rect class="sv-box" x="640" y="30" width="152" height="56" rx="6"/>
+            <text class="sv-t" x="716" y="55" text-anchor="middle">Validação</text>
+            <text class="sv-s" x="716" y="73" text-anchor="middle">regras + confiança</text>
+
+            <rect class="sv-box" x="380" y="240" width="184" height="56" rx="6"/>
+            <text class="sv-t" x="472" y="265" text-anchor="middle">Confirmar</text>
+            <text class="sv-s" x="472" y="283" text-anchor="middle">botões no grupo</text>
+
+            <rect class="sv-box-key" x="700" y="240" width="160" height="56" rx="6"/>
+            <text class="sv-t" x="780" y="265" text-anchor="middle">Gravado</text>
+            <text class="sv-s" x="780" y="283" text-anchor="middle">reage · sync</text>
+
+            <line class="sv-line" x1="164" y1="58" x2="216" y2="58" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="190" y="50" text-anchor="middle">grupo</text>
+
+            <line class="sv-line" x1="374" y1="58" x2="426" y2="58" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="400" y="50" text-anchor="middle">é gasto?</text>
+
+            <line class="sv-line" x1="584" y1="58" x2="636" y2="58" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="610" y="50" text-anchor="middle">JSON</text>
+
+            <line class="sv-line" x1="296" y1="90" x2="296" y2="136" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="296" y="156" text-anchor="middle">conversa comum: descarta em silêncio</text>
+
+            <line class="sv-line-key" x1="790" y1="90" x2="790" y2="236" marker-end="url(#ar2)"/>
+            <text class="sv-l" x="800" y="165" text-anchor="start">confiança alta</text>
+
+            <polyline class="sv-line" points="660,90 660,196 472,196 472,236" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="600" y="188" text-anchor="middle">ambíguo</text>
+
+            <line class="sv-line" x1="568" y1="268" x2="696" y2="268" marker-end="url(#ar2)"/>
+            <text class="sv-s" x="632" y="260" text-anchor="middle">confirmado</text>
+          </svg>
+        </div>
+        <figcaption>A triagem existe porque o bot lê tudo que passa no grupo: ela descarta conversa comum antes de qualquer chamada paga. O ramo de confirmação mantém a base limpa &mdash; dispara quando o parser não tem certeza da categoria, quando o valor foge do padrão daquela categoria, ou quando falta a conta de origem.</figcaption>
+      </figure>
+
+      <p>Passo a passo do workflow <code>ingest</code>:</p>
+      <ol>
+        <li><strong>Webhook</strong> com <code>secret_token</code> do Telegram validado no header.</li>
+        <li><strong>Autorização</strong>: <code>chat.id</code> tem que ser o grupo de vocês e <code>from.id</code> tem que estar em <code>household_members</code>. Qualquer outra combinação é descartada sem resposta.</li>
+        <li><strong>Triagem</strong>: sem número que pareça dinheiro e sem menção ao bot, descarta. Nada de LLM aqui.</li>
+        <li><strong>Idempotência</strong>: <code>update_id</code> do Telegram gravado em <code>ingest_log</code> com índice único. Retentativa do Telegram não gera lançamento duplicado &mdash; esse é o bug número um desse tipo de bot.</li>
+        <li><strong>Normalização</strong>: áudio vai para transcrição; foto de comprovante vai para OCR/visão; texto segue direto.</li>
+        <li><strong>Parse</strong> com <em>structured output</em>, recebendo junto a lista de categorias da household e as últimas regras de merchant aprendidas.</li>
+        <li><strong>Regras determinísticas</strong> antes do banco: valor &gt; 0, data válida, categoria existe, moeda BRL, direção coerente.</li>
+        <li><strong>Insert</strong> com <code>household_id</code>, <code>member_id</code> de quem enviou e <code>status = 'confirmed'</code> ou <code>'pending'</code>.</li>
+        <li><strong>Retorno</strong>: reação de emoji na mensagem original quando gravou limpo; <em>reply</em> com valor, categoria, total do mês na categoria e disponível restante quando há alerta ou dúvida.</li>
+        <li><strong>Enfileira</strong> o sync com o Sheets (assíncrono, não bloqueia a resposta).</li>
+      </ol>
+
+      <h3>3.2 Pergunta &mdash; conversa sobre os dados</h3>
+      <p>Em grupo, o bot só responde quando é chamado: menção (<code>@bot</code>), <em>reply</em> a uma mensagem dele, ou comando. Aí a mensagem cai no workflow <code>ask</code>. O agente recebe as ferramentas descritas na seção 05, escolhe uma, o n8n executa o SQL parametrizado e devolve o resultado numérico ao modelo, que escreve a resposta. O modelo nunca vê a tabela inteira e nunca escreve SQL livre.</p>
+      <p>O clique nos botões inline chega como <code>callback_query</code>, e ele também é validado: só membro da household confirma ou corrige um lançamento. Qualquer um dos dois pode corrigir o lançamento do outro &mdash; é conta conjunta, e travar isso só criaria atrito.</p>
+
+      <h3>3.3 Insights proativos &mdash; o cron</h3>
+      <p>Três agendas: resumo diário às 21h (o que entrou e saiu, quanto sobra por dia até o fim do mês), fechamento semanal no domingo (variação por categoria contra a média de três meses) e fechamento mensal no dia 1º (taxa de poupança, dívidas, objetivos). Os números vêm de views; o LLM só narra.</p>
+
+      <h3>3.4 Sincronização com o Sheets</h3>
+      <p>Duas rotinas: <em>append</em> a cada lançamento confirmado, para a planilha refletir em tempo quase real; e <em>rebuild</em> noturno, que reescreve a aba do mês corrente inteira a partir da view. O rebuild é o que corrige qualquer divergência acumulada, e é a razão pela qual você nunca precisa depurar o append.</p>
+
+      <div class="note alert">
+        <span class="tag">Cuidado</span>
+        <p>A API do Google Sheets tem cota por minuto por projeto. Escrever linha a linha em rajada estoura a cota. Acumule os lançamentos em lote (a cada minuto ou a cada N registros) e escreva de uma vez.</p>
+      </div>
+    </section>
+
+    <!-- ============ 04 ============ -->
+    <section id="dados">
+      <h2><span class="num">04</span> Modelo de dados</h2>
+
+      <p>Três decisões carregam o schema: valores em <strong>centavos como inteiro</strong> (nunca <code>float</code> para dinheiro), <strong><code>timestamptz</code></strong> em tudo, e <strong><code>household_id</code> em toda tabela</strong> com RLS ligada. O resto é convencional.</p>
+
+      <pre><code><span class="cmt">-- identidade: a casa e seus membros</span>
+<span class="kw">create table</span> households (
+  id uuid primary key default gen_random_uuid(),
+  nome text not null,               <span class="cmt">-- 'Casa'</span>
+  telegram_chat_id bigint unique,   <span class="cmt">-- id do grupo (negativo)</span>
+  timezone text default 'America/Sao_Paulo',
+  criado_em timestamptz default now()
+);
+
+<span class="kw">create table</span> household_members (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  telegram_user_id bigint not null, <span class="cmt">-- from.id da mensagem</span>
+  nome text not null,               <span class="cmt">-- aparece nos relatórios</span>
+  auth_user_id uuid,                <span class="cmt">-- login do dashboard (Fase 5)</span>
+  papel text default 'membro' check (papel in ('dono','membro')),
+  ativo boolean default true,
+  unique (household_id, telegram_user_id)
+);
+
+<span class="cmt">-- núcleo transacional</span>
+<span class="kw">create table</span> accounts (           <span class="cmt">-- conta corrente, cartão, dinheiro</span>
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  titular_member_id uuid references household_members(id),  <span class="cmt">-- opcional</span>
+  nome text not null,
+  tipo text not null check (tipo in ('corrente','credito','dinheiro','investimento')),
+  fecha_dia int, vence_dia int,     <span class="cmt">-- só para cartão</span>
+  ativo boolean default true
+);
+
+<span class="kw">create table</span> categories (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  nome text not null,               <span class="cmt">-- 'Mercado', 'Estudos', 'Lazer'</span>
+  grupo text not null check (grupo in ('fixo','variavel','investimento','renda')),
+  essencial boolean default false,
+  unique (household_id, nome)
+);
+
+<span class="kw">create table</span> transactions (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  member_id uuid not null references household_members(id),  <span class="cmt">-- quem lançou</span>
+  occurred_at timestamptz not null,
+  amount_cents bigint not null check (amount_cents > 0),
+  direction text not null check (direction in ('in','out')),
+  category_id uuid references categories(id),
+  account_id  uuid references accounts(id),
+  merchant text,                    <span class="cmt">-- 'iFood', 'Assaí'</span>
+  descricao text,
+  installment_no int, installment_total int,
+  source text not null default 'telegram',
+  raw_message text,                 <span class="cmt">-- a frase original, sempre guardada</span>
+  parse_confidence numeric(3,2),
+  status text not null default 'confirmed'
+      check (status in ('pending','confirmed','rejected')),
+  visibility text not null default 'casa'
+      check (visibility in ('casa','privado')),   <span class="cmt">-- ver 3.0</span>
+  created_at timestamptz default now()
+);
+<span class="kw">create index</span> on transactions (household_id, occurred_at desc);
+<span class="kw">create index</span> on transactions (household_id, category_id, occurred_at desc);
+<span class="kw">create index</span> on transactions (household_id, member_id, occurred_at desc);
+
+<span class="cmt">-- idempotência do webhook</span>
+<span class="kw">create table</span> ingest_log (
+  update_id bigint primary key,     <span class="cmt">-- update_id do Telegram</span>
+  household_id uuid not null,
+  member_id uuid,                   <span class="cmt">-- null se remetente não autorizado</span>
+  transaction_id uuid references transactions(id),
+  outcome text,                     <span class="cmt">-- gravado|triado|ignorado|erro</span>
+  received_at timestamptz default now()
+);
+
+<span class="cmt">-- planejamento</span>
+<span class="kw">create table</span> recurring_rules (   <span class="cmt">-- aluguel, assinaturas, salário</span>
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  descricao text not null,
+  amount_cents bigint not null,
+  direction text not null,
+  category_id uuid references categories(id),
+  dia_do_mes int not null,
+  ativo boolean default true
+);
+
+<span class="kw">create table</span> budgets (
+  household_id uuid not null references households(id),
+  category_id uuid not null references categories(id),
+  competencia date not null,        <span class="cmt">-- primeiro dia do mês</span>
+  limit_cents bigint not null,
+  primary key (household_id, category_id, competencia)
+);
+
+<span class="cmt">-- dívidas e objetivos</span>
+<span class="kw">create table</span> debts (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  nome text not null,
+  principal_cents bigint not null,
+  saldo_cents bigint not null,
+  taxa_mensal numeric(6,4),         <span class="cmt">-- 0.0199 = 1,99% a.m.</span>
+  parcela_cents bigint,
+  parcelas_totais int, parcelas_pagas int default 0,
+  vence_dia int,
+  status text default 'aberta'
+);
+
+<span class="kw">create table</span> debt_payments (
+  id uuid primary key default gen_random_uuid(),
+  debt_id uuid not null references debts(id),
+  transaction_id uuid references transactions(id),
+  pago_em date not null,
+  amount_cents bigint not null,
+  juros_cents bigint
+);
+
+<span class="kw">create table</span> goals (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  nome text not null,               <span class="cmt">-- 'Quitar cartão', 'Reserva'</span>
+  tipo text check (tipo in ('quitar_divida','poupar','reduzir_gasto')),
+  debt_id uuid references debts(id),
+  category_id uuid references categories(id),
+  alvo_cents bigint,
+  prazo date,
+  status text default 'ativo'
+);
+
+<span class="cmt">-- memória do agente: o que "treina" o contexto</span>
+<span class="kw">create table</span> agent_facts (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references households(id),
+  tipo text not null,               <span class="cmt">-- 'preferencia','regra','contexto'</span>
+  fato text not null,               <span class="cmt">-- 'Assaí é sempre Mercado'</span>
+  origem text,                      <span class="cmt">-- 'correcao_usuario' | 'declarado'</span>
+  criado_em timestamptz default now()
+);
+</code></pre>
+
+      <h4>Views que o agente e o dashboard consomem</h4>
+      <ul>
+        <li><code>v_mes_atual</code> &mdash; entradas, saídas, saldo e taxa de poupança do mês corrente.</li>
+        <li><code>v_categoria_mes</code> &mdash; total por categoria por mês, com a média móvel de 3 meses ao lado.</li>
+        <li><code>v_run_rate</code> &mdash; gasto médio diário do mês e projeção de fechamento.</li>
+        <li><code>v_comprometimento</code> &mdash; soma das parcelas de dívida sobre a renda média.</li>
+        <li><code>v_objetivo_progresso</code> &mdash; percentual concluído e aporte mensal necessário para bater o prazo.</li>
+      </ul>
+
+      <div class="note">
+        <span class="tag">Por que centavos</span>
+        <p><code>numeric</code> também resolveria, mas <code>bigint</code> em centavos elimina qualquer discussão sobre arredondamento entre o Postgres, o JavaScript do front e o JSON do n8n &mdash; três lugares onde <code>float</code> quebra de formas diferentes. Formata para real só na borda de exibição.</p>
+      </div>
+    </section>
+
+    <!-- ============ 05 ============ -->
+    <section id="agente">
+      <h2><span class="num">05</span> O agente &mdash; o que "treinar" significa aqui</h2>
+
+      <p>Vale desfazer uma ambiguidade logo: você não vai fazer <em>fine-tuning</em> com seus gastos. Não seria melhor, seria pior &mdash; o modelo decoraria padrões antigos e você teria que retreinar a cada mês. O que funciona é montar o contexto certo a cada chamada, em quatro camadas.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Camada</th><th>O que carrega</th><th>Onde vive</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Perfil</strong></td>
+              <td>Renda somada da casa, contas fixas, dívidas abertas, objetivos ativos, nomes dos dois membros</td>
+              <td class="mono">montado por query a cada chamada</td>
+            </tr>
+            <tr>
+              <td><strong>Regras aprendidas</strong></td>
+              <td>Correções que você já fez: merchant → categoria, apelidos, exceções</td>
+              <td class="mono">agent_facts</td>
+            </tr>
+            <tr>
+              <td><strong>Ferramentas</strong></td>
+              <td>Consultas SQL parametrizadas que o modelo pode chamar, nunca SQL livre</td>
+              <td class="mono">nós do n8n</td>
+            </tr>
+            <tr>
+              <td><strong>Números</strong></td>
+              <td>Métricas já calculadas nas views &mdash; entram prontas no prompt</td>
+              <td class="mono">views do Postgres</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>As ferramentas</h3>
+      <p>Sete são suficientes para cobrir praticamente tudo que você vai perguntar. Cada uma é um nó com SQL fixo e parâmetros tipados:</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Ferramenta</th><th>Parâmetros</th><th>Retorna</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="mono">registrar_lancamento</td><td class="mono">valor, direção, categoria, data, conta, descrição</td><td>id do lançamento + total do mês na categoria</td></tr>
+            <tr><td class="mono">corrigir_lancamento</td><td class="mono">id, campo, novo_valor</td><td>registro atualizado + grava o aprendizado</td></tr>
+            <tr><td class="mono">consultar_periodo</td><td class="mono">início, fim, direção?</td><td>entradas, saídas, saldo</td></tr>
+            <tr><td class="mono">consultar_categoria</td><td class="mono">categoria, período, comparar_com?</td><td>total, média histórica, variação</td></tr>
+            <tr><td class="mono">status_dividas</td><td class="mono">&mdash;</td><td>saldo, parcela, quitação projetada por dívida</td></tr>
+            <tr><td class="mono">progresso_objetivo</td><td class="mono">objetivo?</td><td>% concluído, ritmo atual, ritmo necessário</td></tr>
+            <tr><td class="mono">projecao_mes</td><td class="mono">&mdash;</td><td>fechamento projetado e disponível por dia</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>O contrato do parser</h3>
+      <p>Na ingestão o modelo não conversa: ele preenche um schema. Isso torna a saída testável e o custo previsível.</p>
+
+      <pre><code>{
+  "direction":   "out",              <span class="cmt">// in | out</span>
+  "amount_cents": 8500,
+  "occurred_at": "2026-08-28",       <span class="cmt">// resolve "ontem", "sexta"</span>
+  "category":    "Mercado",          <span class="cmt">// só das categorias enviadas</span>
+  "account":     "Nubank",
+  "merchant":    "Assaí",
+  "descricao":   "compra do mês",
+  "installment": { "no": 1, "total": 3 } | null,
+  "confidence":  0.93,
+  "ambiguidade": null                <span class="cmt">// ou o que ficou em dúvida</span>
+}</code></pre>
+
+      <h4>Instruções que valem a pena estarem no system prompt</h4>
+      <ul>
+        <li>Nunca inventar valor, data ou categoria &mdash; campo ausente é <code>null</code>, e <code>confidence</code> cai.</li>
+        <li>Categoria só da lista fornecida. Nada parecido? <code>null</code> + <code>ambiguidade</code> preenchida.</li>
+        <li>Datas relativas resolvidas contra o fuso <code>America/Sao_Paulo</code>, enviado no prompt.</li>
+        <li>"Recebi", "caiu", "entrou" e o nome do salário são <code>direction: in</code>.</li>
+        <li>Parcelamento vira um lançamento por parcela, com <code>occurred_at</code> nas competências futuras.</li>
+        <li>Ao narrar insight: sempre citar o período e a base de comparação. Nunca dar conselho de investimento.</li>
+        <li>Falar da casa, não de uma pessoa: "gastamos", "sobrou". Só citar quem lançou quando a pergunta for sobre isso &mdash; um bot que fica atribuindo gasto a alguém num grupo de casal envelhece mal.</li>
+      </ul>
+
+      <div class="note">
+        <span class="tag">Sobre o tom</span>
+        <p>Um agente financeiro que só elogia é inútil e um que só alarma é desligado na segunda semana. Vale calibrar explicitamente: relatar variação com número e base, alertar quando um limite de fato foi cruzado, e ficar quieto quando o mês está dentro do normal. Silêncio é informação.</p>
+      </div>
+    </section>
+
+    <!-- ============ 06 ============ -->
+    <section id="insights">
+      <h2><span class="num">06</span> Catálogo de insights</h2>
+
+      <p>Cada linha abaixo é uma query, não um prompt. Implemente como view, teste o número, e só então deixe o modelo transformar em frase.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Insight</th><th>Cálculo</th><th>Gatilho</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><strong>Taxa de poupança</strong></td>
+              <td>(entradas &minus; saídas) ÷ entradas, no mês</td>
+              <td><span class="pill in">mensal</span></td>
+            </tr>
+            <tr>
+              <td><strong>Disponível por dia</strong></td>
+              <td>(renda &minus; fixos &minus; gasto até hoje) ÷ dias restantes</td>
+              <td><span class="pill in">diário</span></td>
+            </tr>
+            <tr>
+              <td><strong>Projeção de fechamento</strong></td>
+              <td>gasto médio diário × dias do mês, + fixos ainda não lançados</td>
+              <td><span class="pill warn">quando estoura a renda</span></td>
+            </tr>
+            <tr>
+              <td><strong>Variação por categoria</strong></td>
+              <td>mês corrente vs. média móvel de 3 meses, em % e em reais</td>
+              <td><span class="pill warn">desvio &gt; 25%</span></td>
+            </tr>
+            <tr>
+              <td><strong>Gasto atípico</strong></td>
+              <td>lançamento acima do percentil 90 histórico da categoria</td>
+              <td><span class="pill warn">no ato</span></td>
+            </tr>
+            <tr>
+              <td><strong>Assinaturas detectadas</strong></td>
+              <td>mesmo merchant, valor próximo, intervalo ~30 dias, 3+ ocorrências</td>
+              <td><span class="pill in">mensal</span></td>
+            </tr>
+            <tr>
+              <td><strong>Comprometimento de renda</strong></td>
+              <td>soma das parcelas de dívida ÷ renda média de 3 meses</td>
+              <td><span class="pill out">acima de 30%</span></td>
+            </tr>
+            <tr>
+              <td><strong>Data de quitação</strong></td>
+              <td>amortização com a taxa da dívida, comparando avalanche vs. bola de neve</td>
+              <td><span class="pill in">sob demanda</span></td>
+            </tr>
+            <tr>
+              <td><strong>Ritmo do objetivo</strong></td>
+              <td>aporte necessário por mês para bater o prazo vs. aporte real</td>
+              <td><span class="pill warn">ritmo abaixo do necessário</span></td>
+            </tr>
+            <tr>
+              <td><strong>Quebra por membro</strong></td>
+              <td>total lançado por pessoa no mês, por categoria</td>
+              <td><span class="pill in">sob demanda</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>Os dois últimos são os que respondem diretamente ao que você quer acompanhar: <em>estou gastando mais ou menos do que ganho</em> vira taxa de poupança mais projeção, e <em>quando eu quito isso</em> vira a curva de amortização com o aporte real observado, não o planejado.</p>
+    </section>
+
+    <!-- ============ 07 ============ -->
+    <section id="stack">
+      <h2><span class="num">07</span> Stack e custo real</h2>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Camada</th><th>Escolha</th><th>Custo</th><th>Observação</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Entrada</td><td>Telegram Bot API</td><td class="num">grátis</td>
+              <td>Webhook com <code>secret_token</code>; sem limite prático nesse volume</td>
+            </tr>
+            <tr>
+              <td>Orquestração</td><td>n8n self-hosted (VPS + Docker)</td><td class="num">~US$ 5&ndash;12/mês</td>
+              <td>Execuções ilimitadas. O n8n Cloud Starter custa €20/mês e inclui 2.500 execuções &mdash; seu volume cabe, mas o VPS sai mais barato e você já opera infra</td>
+            </tr>
+            <tr>
+              <td>Banco</td><td>Supabase</td><td class="num">US$ 0 → 25/mês</td>
+              <td>Free: 500 MB de banco, 1 GB de storage, 5 GB de egress, e o projeto pausa após 1 semana sem atividade. Pro ($25): 8 GB, sem pausa</td>
+            </tr>
+            <tr>
+              <td>LLM</td><td>Gemini Flash-Lite ou Claude Haiku</td><td class="num">&lt; US$ 2/mês</td>
+              <td>Flash-Lite: $0,30/M entrada e $2,50/M saída. Haiku: $1/M e $5/M. A ~300 lançamentos/mês o gasto fica na casa dos centavos</td>
+            </tr>
+            <tr>
+              <td>Front</td><td>Next.js na Vercel</td><td class="num">grátis</td>
+              <td>Plano Hobby cobre uso pessoal; migra para Pro só se virar produto</td>
+            </tr>
+            <tr>
+              <td>Espelho</td><td>Google Sheets API</td><td class="num">grátis</td>
+              <td>Atenção às cotas por minuto &mdash; escreva em lote</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p><strong>MVP pessoal: US$ 5 a 15 por mês</strong>, dominado pelo VPS. O LLM é ruído no custo nesse volume. Se você já tem um VPS rodando outra coisa, cai para praticamente zero.</p>
+
+      <div class="note alert">
+        <span class="tag">Pegadinha do free tier</span>
+        <p>O Supabase Free pausa o projeto após uma semana sem atividade. Um bot que grava todo dia mantém o projeto vivo, mas se você viajar duas semanas ele pausa e o primeiro lançamento na volta falha. Se for ficar no Free, um <em>ping</em> semanal do cron do n8n resolve; se o projeto virar sério, o Pro elimina a questão.</p>
+      </div>
+    </section>
+
+    <!-- ============ 08 ============ -->
+    <section id="roadmap">
+      <h2><span class="num">08</span> Roadmap</h2>
+
+      <p>A sequência é deliberada: cada fase entrega algo que você usa de verdade antes da próxima começar. Se parar na Fase 3, você já tem um produto pessoal completo.</p>
+
+      <ol class="phases">
+        <li>
+          <div class="ph-id"><b>Fase 0</b>Um fim de semana</div>
+          <div class="ph-body">
+            <h3>O caminho feliz</h3>
+            <p>Bot criado com <strong>privacy mode desligado</strong>, adicionado ao grupo, webhook no n8n, os dois <code>telegram_user_id</code> cadastrados, triagem, parse com structured output, insert no Postgres. Uma categoria fixa se precisar. Sem Sheets, sem front, sem dívidas.</p>
+            <p class="ph-done">Pronto quando: qualquer um dos dois manda "85 mercado" no grupo e o registro aparece no banco, com o autor certo, em menos de 5 segundos.</p>
+          </div>
+        </li>
+        <li>
+          <div class="ph-id"><b>Fase 1</b>Semana 2</div>
+          <div class="ph-body">
+            <h3>Confiável o bastante para usar todo dia</h3>
+            <p>Categorias reais, botões de correção inline, idempotência do webhook, tratamento de datas relativas, parcelamento e o sync com o Sheets (append + rebuild noturno).</p>
+            <p class="ph-done">Pronto quando: uma semana inteira de gastos registrada sem você abrir a planilha para consertar nada.</p>
+          </div>
+        </li>
+        <li>
+          <div class="ph-id"><b>Fase 2</b>Semanas 3&ndash;4</div>
+          <div class="ph-body">
+            <h3>A parte visual</h3>
+            <p>Views de métricas no Postgres e o dashboard em Next.js: mês corrente, entradas × saídas, quebra por categoria, série dos últimos 12 meses, lista de lançamentos com edição.</p>
+            <p class="ph-done">Pronto quando: você responde "quanto gastei em lazer em julho" olhando a tela, não a planilha.</p>
+          </div>
+        </li>
+        <li>
+          <div class="ph-id"><b>Fase 3</b>Mês 2</div>
+          <div class="ph-body">
+            <h3>Dívidas, objetivos e insights proativos</h3>
+            <p>Tabelas de dívida e objetivo, curva de amortização, os crons diário/semanal/mensal e o catálogo de insights da seção 06 no Telegram.</p>
+            <p class="ph-done">Pronto quando: o bot te avisa de um estouro de categoria antes de você perceber.</p>
+          </div>
+        </li>
+        <li>
+          <div class="ph-id"><b>Fase 4</b>Mês 3</div>
+          <div class="ph-body">
+            <h3>Conversa aberta</h3>
+            <p>Agente com as sete ferramentas, memória em <code>agent_facts</code>, e a mesma conversa disponível dentro do dashboard.</p>
+            <p class="ph-done">Pronto quando: perguntas em português livre sobre qualquer período são respondidas com números que batem com o SQL.</p>
+          </div>
+        </li>
+        <li>
+          <div class="ph-id"><b>Fase 5</b>Depois de 60&ndash;90 dias de uso</div>
+          <div class="ph-body">
+            <h3>Virar SaaS</h3>
+            <p>Auth do Supabase, RLS validada com duas households reais, onboarding (criar a casa, adicionar o bot ao grupo, vincular membros por código), plano e cobrança, LGPD e política de dados. Só entra depois que o produto provou valor em vocês dois.</p>
+            <p class="ph-done">Pronto quando: outro casal cria a própria household, adiciona o bot ao grupo deles e registra o primeiro gasto sem sua ajuda.</p>
+          </div>
+        </li>
+      </ol>
+    </section>
+
+    <!-- ============ 09 ============ -->
+    <section id="riscos">
+      <h2><span class="num">09</span> Riscos e o que fica de fora</h2>
+
+      <h4>Riscos que valem mitigação desde já</h4>
+      <ul>
+        <li><strong>Duplicação por retentativa.</strong> O Telegram reenvia updates não confirmados. Sem a tabela <code>ingest_log</code> com chave única, você acorda com lançamentos triplicados. É o primeiro bug a evitar.</li>
+        <li><strong>Privacy mode ligado.</strong> O bot em grupo não recebe mensagem comum enquanto o <code>/setprivacy</code> não for desabilitado no BotFather &mdash; e a mudança só vale depois de remover e readicionar o bot ao grupo. Falha silenciosa: nada chega, nenhum erro aparece.</li>
+        <li><strong>Grupo virando supergrupo.</strong> Se o grupo for promovido (acontece ao mudar configurações ou adicionar gente), o <code>chat_id</code> muda e o Telegram envia um update com <code>migrate_to_chat_id</code>. Trate esse update atualizando <code>households.telegram_chat_id</code>, senão o bot emudece do nada.</li>
+        <li><strong>Webhook aberto.</strong> Valide o <code>secret_token</code>, o <code>chat.id</code> do grupo e o <code>from.id</code> contra <code>household_members</code>. Um endpoint de n8n exposto sem isso vira porta de entrada.</li>
+        <li><strong>Segredos no n8n.</strong> Credenciais nas <em>credentials</em> do n8n, nunca no corpo do workflow, e o workflow exportado para Git sem elas.</li>
+        <li><strong>Deriva do parser.</strong> Monte 30 mensagens reais como suite de teste e rode contra o prompt sempre que mexer nele. Sem isso você não percebe que uma edição no prompt quebrou datas relativas.</li>
+        <li><strong>Backup.</strong> <code>pg_dump</code> semanal para um bucket. O Sheets ajuda como cópia de leitura, mas não substitui.</li>
+        <li><strong>LGPD, quando virar SaaS.</strong> Dado financeiro pessoal exige base legal, política de privacidade, criptografia em repouso e um caminho de exclusão de conta. Barato de fazer na Fase 5, caro de retrofitar depois.</li>
+      </ul>
+
+      <h4>Deliberadamente fora do escopo inicial</h4>
+      <ul>
+        <li><strong>Open Finance / agregadores bancários.</strong> Resolveriam a entrada automática, mas trazem custo por conexão, complexidade regulatória e um caminho de homologação que mata o ritmo do MVP. O Telegram cobre 100% dos casos com 5% do esforço &mdash; e ainda captura a intenção ("almoço com cliente"), que o extrato bancário não tem.</li>
+        <li><strong>App mobile.</strong> O Telegram já é o app mobile. Um PWA no Next.js cobre o resto.</li>
+        <li><strong>Importação de OFX/extrato.</strong> Útil, mas só faz sentido depois que o fluxo manual estiver sólido, como conciliação e não como entrada primária.</li>
+        <li><strong>Fine-tuning do modelo.</strong> Contexto estruturado resolve melhor e sem custo de retreino, conforme a seção 05.</li>
+      </ul>
+
+      <div class="note">
+        <span class="tag">O próximo passo</span>
+        <p>A Fase 0 é pequena o bastante para caber num sábado e é ela que revela se o formato de entrada por Telegram funciona para o seu dia a dia &mdash; a única incerteza real do projeto. Tudo depois disso é execução.</p>
+      </div>
+    </section>
+
+    <footer>
+      Fontes de preço consultadas em agosto de 2026:
+      <a href="https://supabase.com/pricing">Supabase</a> ·
+      <a href="https://n8n.io/pricing/">n8n</a> ·
+      <a href="https://ai.google.dev/gemini-api/docs/pricing">Gemini API</a> ·
+      <a href="https://platform.claude.com/docs/en/about-claude/pricing">Claude API</a>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>

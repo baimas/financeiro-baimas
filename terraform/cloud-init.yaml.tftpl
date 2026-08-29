@@ -1,0 +1,166 @@
+#cloud-config
+# Executado uma única vez, no primeiro boot da VM.
+# Resolve o iptables da Oracle, monta o volume de dados e sobe n8n + Caddy.
+
+package_update: true
+package_upgrade: false
+packages:
+  - ca-certificates
+  - curl
+  - jq
+  - iptables-persistent
+
+write_files:
+  # ── segredos e configuração da stack ──────────────────────────────────────
+  - path: /opt/n8n/.env
+    permissions: '0600'
+    owner: root:root
+    content: |
+      DOMINIO=${dominio}
+      GEMINI_API_KEY=${gemini_api_key}
+      N8N_ENCRYPTION_KEY=${n8n_encryption_key}
+      TZ=${timezone}
+
+  - path: /opt/n8n/docker-compose.yml
+    permissions: '0644'
+    content: |
+      services:
+        n8n:
+          image: docker.n8n.io/n8nio/n8n:latest
+          restart: unless-stopped
+          environment:
+            - N8N_HOST=$${DOMINIO}
+            - N8N_PORT=5678
+            - N8N_PROTOCOL=https
+            - WEBHOOK_URL=https://$${DOMINIO}/
+            - N8N_EDITOR_BASE_URL=https://$${DOMINIO}/
+            - N8N_PROXY_HOPS=1
+            - N8N_SECURE_COOKIE=true
+            - GENERIC_TIMEZONE=$${TZ}
+            - TZ=$${TZ}
+            - GEMINI_API_KEY=$${GEMINI_API_KEY}
+            - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+            - N8N_ENCRYPTION_KEY=$${N8N_ENCRYPTION_KEY}
+            - N8N_RUNNERS_ENABLED=true
+          volumes:
+            - /opt/n8n-data/n8n:/home/node/.n8n
+          expose:
+            - "5678"
+
+        caddy:
+          image: caddy:2
+          restart: unless-stopped
+          environment:
+            - DOMINIO=$${DOMINIO}
+          ports:
+            - "80:80"
+            - "443:443"
+          volumes:
+            - /opt/n8n/Caddyfile:/etc/caddy/Caddyfile:ro
+            - /opt/n8n-data/caddy/data:/data
+            - /opt/n8n-data/caddy/config:/config
+
+  - path: /opt/n8n/Caddyfile
+    permissions: '0644'
+    content: |
+      {$DOMINIO} {
+      	reverse_proxy n8n:5678
+      }
+
+  # ── DuckDNS: mantém o domínio apontando para o IP certo ───────────────────
+  - path: /usr/local/bin/duckdns-update.sh
+    permissions: '0755'
+    content: |
+      #!/usr/bin/env bash
+      TOKEN="${duckdns_token}"
+      DOMINIO="${duckdns_dominio}"
+      [ -z "$TOKEN" ] && exit 0
+      curl -fsS "https://www.duckdns.org/update?domains=$DOMINIO&token=$TOKEN&ip=" \
+        -o /var/log/duckdns.log 2>&1
+
+  - path: /etc/systemd/system/duckdns.service
+    content: |
+      [Unit]
+      Description=Atualiza o IP no DuckDNS
+      After=network-online.target
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/bin/duckdns-update.sh
+
+  - path: /etc/systemd/system/duckdns.timer
+    content: |
+      [Unit]
+      Description=Atualiza o DuckDNS a cada 15 minutos
+      [Timer]
+      OnBootSec=30s
+      OnUnitActiveSec=15min
+      [Install]
+      WantedBy=timers.target
+
+  # O Docker só pode subir depois que o volume de dados estiver montado,
+  # senão o n8n cria um banco vazio em cima do ponto de montagem.
+  - path: /etc/systemd/system/docker.service.d/aguarda-volume.conf
+    content: |
+      [Unit]
+      RequiresMountsFor=/opt/n8n-data
+
+runcmd:
+  # ── 1. iptables: a pegadinha da Oracle ──────────────────────────────────────
+  # Abrir 80/443 na Security List não basta. As imagens Ubuntu da OCI vêm com
+  # um REJECT no fim da chain INPUT que descarta tudo, sem log e sem erro
+  # visível — o Let's Encrypt simplesmente nunca completa o desafio HTTP-01.
+  - iptables -I INPUT 1 -p tcp --dport 80  -m conntrack --ctstate NEW -j ACCEPT
+  - iptables -I INPUT 1 -p tcp --dport 443 -m conntrack --ctstate NEW -j ACCEPT
+  - netfilter-persistent save
+  - systemctl enable netfilter-persistent
+
+  # ── 2. swap, indispensável na E2.1.Micro de 1 GB ───────────────────────────
+  - |
+    MEM_KB=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
+    if [ "$MEM_KB" -lt 3000000 ] && [ ! -f /swapfile ]; then
+      fallocate -l 2G /swapfile
+      chmod 600 /swapfile
+      mkswap /swapfile
+      swapon /swapfile
+      echo '/swapfile none swap sw 0 0' >> /etc/fstab
+      sysctl -w vm.swappiness=10
+    fi
+
+  # ── 3. volume de dados: espera anexar, formata se for a primeira vez ────────
+  - |
+    DEV=/dev/oracleoci/oraclevdb
+    for i in $(seq 1 60); do [ -b "$DEV" ] && break; sleep 5; done
+    if [ -b "$DEV" ]; then
+      if ! blkid "$DEV" >/dev/null 2>&1; then
+        mkfs.ext4 -F -L n8ndados "$DEV"
+      fi
+      mkdir -p /opt/n8n-data
+      grep -q "$DEV" /etc/fstab || \
+        echo "$DEV /opt/n8n-data ext4 defaults,_netdev,nofail 0 2" >> /etc/fstab
+      mount -a
+    else
+      # Sem volume anexado, segue em disco local para não travar o boot.
+      mkdir -p /opt/n8n-data
+    fi
+    mkdir -p /opt/n8n-data/n8n /opt/n8n-data/caddy/data /opt/n8n-data/caddy/config
+    chown -R 1000:1000 /opt/n8n-data/n8n
+
+  # ── 4. docker ──────────────────────────────────────────────────────────────
+  - curl -fsSL https://get.docker.com -o /tmp/get-docker.sh
+  - sh /tmp/get-docker.sh
+  - usermod -aG docker ubuntu
+  - systemctl daemon-reload
+  - systemctl enable --now docker
+
+  # ── 5. DuckDNS antes de subir o Caddy, senão o certificado falha ───────────
+  - systemctl daemon-reload
+  - systemctl enable --now duckdns.timer
+  - /usr/local/bin/duckdns-update.sh
+  - sleep 10
+
+  # ── 6. sobe a stack ────────────────────────────────────────────────────────
+  - docker compose -f /opt/n8n/docker-compose.yml --env-file /opt/n8n/.env up -d
+
+  - echo "cloud-init concluído em $(date -Is)" > /var/log/gastos-setup.log
+
+final_message: "n8n no ar depois do certificado sair. Acompanhe com: docker compose -f /opt/n8n/docker-compose.yml logs -f caddy"

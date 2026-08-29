@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+<title>Quem Já Faz Isso</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+:root{
+  --ground:#EFF2F0; --surface:#FFFFFF; --surface-2:#E7ECE9;
+  --ink:#101E1C; --muted:#556660; --rule:#D3DBD7; --rule-soft:#E1E7E4;
+  --accent:#0E4C51; --accent-ink:#0E4C51; --accent-wash:#DCE9E9;
+  --ok:#1F6B4C; --no:#A83E29; --part:#8A5A08;
+  --shadow:0 1px 2px rgba(16,30,28,.06),0 8px 24px -16px rgba(16,30,28,.25);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --ground:#0B1413; --surface:#111D1B; --surface-2:#162422;
+    --ink:#E4EDEA; --muted:#93A69F; --rule:#233532; --rule-soft:#1B2A28;
+    --accent:#63BCB4; --accent-ink:#7FCFC6; --accent-wash:#12302F;
+    --ok:#5FC694; --no:#E68A72; --part:#D9A94A;
+    --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+  }
+}
+:root[data-theme="dark"]{
+  --ground:#0B1413; --surface:#111D1B; --surface-2:#162422;
+  --ink:#E4EDEA; --muted:#93A69F; --rule:#233532; --rule-soft:#1B2A28;
+  --accent:#63BCB4; --accent-ink:#7FCFC6; --accent-wash:#12302F;
+  --ok:#5FC694; --no:#E68A72; --part:#D9A94A;
+  --shadow:0 1px 2px rgba(0,0,0,.4),0 8px 24px -16px rgba(0,0,0,.7);
+}
+
+*{box-sizing:border-box}
+body{
+  margin:0;background:var(--ground);color:var(--ink);
+  font-family:"Newsreader",Georgia,"Times New Roman",serif;
+  font-size:17.5px;line-height:1.62;-webkit-font-smoothing:antialiased;
+}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-size:.84em;
+  background:var(--surface-2);border:1px solid var(--rule-soft);border-radius:4px;padding:1px 5px}
+
+.shell{max-width:1000px;margin:0 auto;padding:0 24px 96px}
+
+.masthead{padding:64px 0 36px;border-bottom:1px solid var(--rule)}
+.eyebrow{font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--accent-ink);margin:0 0 18px}
+h1{font-family:"Archivo",system-ui,sans-serif;font-weight:700;
+  font-size:clamp(2.1rem,5.2vw,3.3rem);line-height:1.03;letter-spacing:-.03em;
+  margin:0 0 20px;text-wrap:balance;max-width:15ch}
+.standfirst{font-size:1.16rem;color:var(--muted);max-width:64ch;margin:0}
+
+main{padding-top:40px}
+section{margin-bottom:64px}
+h2{font-family:"Archivo",system-ui,sans-serif;font-weight:600;font-size:1.58rem;
+  letter-spacing:-.02em;line-height:1.15;margin:0 0 18px;padding-bottom:12px;
+  border-bottom:1px solid var(--rule);text-wrap:balance}
+h3{font-family:"Archivo",system-ui,sans-serif;font-weight:600;font-size:1.05rem;
+  letter-spacing:-.005em;margin:32px 0 10px}
+h4{font-family:"IBM Plex Mono",monospace;font-weight:600;font-size:11.5px;
+  letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin:26px 0 10px}
+p{margin:0 0 16px;max-width:70ch}
+main ul,main ol{max-width:70ch;padding-left:20px;margin:0 0 16px}
+main li{margin-bottom:7px}
+strong{font-weight:600}
+a{color:var(--accent-ink)}
+
+.verdict{
+  background:var(--surface);border:1px solid var(--accent);border-radius:10px;
+  padding:26px 28px;margin:36px 0 8px;box-shadow:var(--shadow)
+}
+.verdict .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:12px}
+.verdict p{margin-bottom:14px;max-width:66ch}
+.verdict p:last-child{margin-bottom:0}
+
+.note{background:var(--surface);border:1px solid var(--rule);border-radius:8px;
+  padding:18px 20px;margin:24px 0;box-shadow:var(--shadow);max-width:72ch}
+.note p:last-child{margin-bottom:0}
+.note .tag{font-family:"IBM Plex Mono",monospace;font-size:11px;letter-spacing:.12em;
+  text-transform:uppercase;color:var(--accent-ink);display:block;margin-bottom:8px}
+.note.alert .tag{color:var(--part)}
+
+.tablewrap{overflow-x:auto;margin:22px 0;border:1px solid var(--rule);
+  border-radius:8px;background:var(--surface);box-shadow:var(--shadow)}
+table{border-collapse:collapse;width:100%;min-width:640px;font-size:.92rem}
+th{text-align:left;font-family:"IBM Plex Mono",monospace;font-size:10.5px;font-weight:600;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--muted);
+  padding:12px 16px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:13px 16px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+tr:last-child td{border-bottom:none}
+td.price{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums;
+  font-size:.9em;white-space:nowrap}
+td.name{font-weight:600;white-space:nowrap}
+td.name small{display:block;font-weight:400;font-size:.78em;color:var(--muted);
+  font-family:"IBM Plex Mono",monospace;letter-spacing:.02em;margin-top:3px;white-space:nowrap}
+.mk{font-family:"IBM Plex Mono",monospace;font-size:12px;font-weight:600}
+.mk.y{color:var(--ok)} .mk.n{color:var(--no)} .mk.p{color:var(--part)}
+.matrix td:not(:first-child){text-align:center}
+.matrix th:not(:first-child){text-align:center}
+.legend{font-family:"IBM Plex Mono",monospace;font-size:11px;color:var(--muted);
+  display:flex;gap:18px;flex-wrap:wrap;margin:-8px 0 24px}
+
+footer{border-top:1px solid var(--rule);padding-top:22px;margin-top:8px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted);line-height:1.9}
+footer a{color:var(--muted)}
+</style>
+
+<div class="shell">
+
+  <header class="masthead">
+    <p class="eyebrow">Pesquisa de mercado &middot; agosto 2026</p>
+    <h1>Quem Já Faz Isso</h1>
+    <p class="standfirst">O que existe hoje de bot financeiro conversacional no Brasil e fora dele, quanto cada um cobra, e o que nenhum deles entrega para o caso de vocês dois.</p>
+  </header>
+
+  <main>
+
+    <div class="verdict">
+      <span class="tag">Resposta curta</span>
+      <p>A categoria existe e está cheia &mdash; mas é <strong>WhatsApp-first, individual e fechada</strong>. Os dois concorrentes mais próximos cobram cerca de <strong>R$ 30/mês</strong> para um casal, praticamente o mesmo custo mensal do seu projeto rodando num VPS.</p>
+      <p>Então <strong>economia não é argumento para construir</strong>. O que nenhum deles faz: viver num grupo do Telegram onde os dois só conversam, aprender com as suas correções, e conhecer as suas dívidas e objetivos a ponto de dizer se este mês está bom ou ruim. E nenhum te dá SQL na sua base.</p>
+      <p>Sugestão prática: <strong>assine um mês de um deles por R$ 30</strong> antes de escrever a Fase 0. Ele responde, em uma semana e sem custo de tempo, a única incerteza real do projeto &mdash; se registrar gasto por mensagem encaixa na rotina de vocês dois.</p>
+    </div>
+
+    <section>
+      <h2>Bots conversacionais brasileiros</h2>
+      <p>É o grupo que mais se parece com o que você descreveu. Todos entram por texto, áudio e foto de comprovante, com IA categorizando. A diferença entre eles está em multiusuário, Open Finance e maturidade.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Ferramenta</th><th>Canal</th><th>Preço</th><th>Casal</th><th>Observação</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">ZapGastos<small>zapgastos.com</small></td>
+              <td>WhatsApp<br><small>Telegram citado no site, não nos planos</small></td>
+              <td class="price">R$ 9,90/mês no anual<br>(1 usuário)<br><br><strong>R$ 29,90/mês no anual</strong><br>plano Plus, até 5<br><br>R$ 59,90 avulso</td>
+              <td><span class="mk y">sim</span><br><small>Plus+</small></td>
+              <td>Open Finance com 114 bancos, painel web, projeção de fim de mês. O plano barato é de um usuário só &mdash; para vocês dois o preço real é o Plus.</td>
+            </tr>
+            <tr>
+              <td class="name">Financinha<small>financinha.com.br</small></td>
+              <td>WhatsApp</td>
+              <td class="price"><strong>R$ 29,49/mês</strong><br>(R$ 353,90/ano)<br>plano Manual<br><br>R$ 39,90/mês<br>com Open Finance</td>
+              <td><span class="mk y">sim</span><br><small>ilimitado</small></td>
+              <td>Usuários colaborativos ilimitados no plano base &mdash; o mais direto para casal. Texto, áudio, imagem e PDF de extrato.</td>
+            </tr>
+            <tr>
+              <td class="name">FinanBot<small>finanbot.com.br</small></td>
+              <td>WhatsApp</td>
+              <td class="price">grátis<br><small>fase alpha</small></td>
+              <td><span class="mk n">não doc.</span></td>
+              <td>Trata financiamento com parcelas, amortização e múltiplas metas &mdash; a parte de dívidas mais parecida com a que você quer. Em alpha: pode mudar de preço ou sumir.</td>
+            </tr>
+            <tr>
+              <td class="name">FinancaAssistenteBot<small>projeto independente</small></td>
+              <td>Telegram<br><small>voz e texto</small></td>
+              <td class="price">grátis + pagos<br><small>não divulgado</small></td>
+              <td><span class="mk n">não</span></td>
+              <td>O único nativo de Telegram que apareceu. Projeto de um dev, assumidamente no início, pitchado no TabNews. Vale olhar como referência, não como fornecedor.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="note alert">
+        <span class="tag">Verificar antes de assinar</span>
+        <p>A home do ZapGastos menciona WhatsApp <em>ou</em> Telegram; a página de planos só fala de WhatsApp. Se Telegram for requisito, pergunte antes de pagar. E nenhum dos dois deixa claro se funciona dentro de um <strong>grupo</strong> ou só na conversa individual de cada membro &mdash; é a pergunta que decide se serve para vocês.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Apps brasileiros clássicos</h2>
+      <p>Mais maduros, mais completos em relatório e cartão, e sem bot. A entrada é o app.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Ferramenta</th><th>Preço</th><th>Bot / IA</th><th>Observação</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">Mobills</td>
+              <td class="price">R$ 99,90/ano<br><small>≈ R$ 8,40/mês</small></td>
+              <td><span class="mk n">não</span></td>
+              <td>O mais barato da lista. Sincroniza Nubank e Santander, tem metas e alertas. Nada de conta compartilhada documentada.</td>
+            </tr>
+            <tr>
+              <td class="name">Organizze</td>
+              <td class="price">R$ 199,90/ano<br>manual (ou R$ 35/mês)<br><br>R$ 399,90/ano<br>conectado, 3 contas<br><br>R$ 599,90/ano<br>plus, 10 contas</td>
+              <td><span class="mk p">parcial</span></td>
+              <td>Não tem assistente próprio, mas expõe uma conexão para você consultar seus dados pelo ChatGPT ou Claude &mdash; a coisa mais próxima de "agente" num app tradicional daqui.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Internacionais</h2>
+      <p>Melhores de produto, inúteis aqui. Nenhum conecta banco brasileiro, e o orçamento é pensado em dólar e no calendário fiscal americano.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Ferramenta</th><th>Preço</th><th>Casal</th><th>Observação</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">YNAB</td><td class="price">US$ 109/ano<br>(US$ 14,99/mês)</td><td><span class="mk y">até 6</span></td><td>Método de orçamento envelope, curva de aprendizado real. Sem bancos BR.</td></tr>
+            <tr><td class="name">Monarch Money</td><td class="price">US$ 99,99/ano<br>US$ 199/ano Plus</td><td><span class="mk y">household</span></td><td>Visão de casa nativa. Sem bancos BR.</td></tr>
+            <tr><td class="name">Copilot Money</td><td class="price">US$ 95/ano</td><td><span class="mk n">não</span></td><td>Só iOS e um usuário. Fora de questão para casal.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Open source e self-host</h2>
+      <p>O caminho mais próximo do seu perfil, e o que mais revela por que vale construir: a base existe, o bot de Telegram é justamente a peça que falta.</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Ferramenta</th><th>Custo</th><th>Observação</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">Firefly III</td>
+              <td class="price">grátis<br><small>+ VPS</small></td>
+              <td>Gestor de finanças self-hosted maduro, com API completa. Existe um bot de Telegram da comunidade, mas o próprio README se declara alpha e o repositório está parado. Serve como back-end pronto se você não quiser modelar o banco.</td>
+            </tr>
+            <tr>
+              <td class="name">Actual Budget</td>
+              <td class="price">grátis<br><small>+ VPS ou hosting pago</small></td>
+              <td>Alternativa open source ao YNAB, local-first e sincronizada. Ótimo produto, sem qualquer entrada por mensagem.</td>
+            </tr>
+            <tr>
+              <td class="name">Templates n8n</td>
+              <td class="price">grátis</td>
+              <td>Existem vários templates públicos de "Telegram + IA + Google Sheets" e até um de "Gemini + Telegram + Firefly III" com relatórios de orçamento. São single-user e sem dívidas ou objetivos &mdash; mas encurtam bastante a sua Fase 0.</td>
+            </tr>
+            <tr>
+              <td class="name">TeleExpense e afins</td>
+              <td class="price">grátis</td>
+              <td>Bots de Telegram prontos que gravam em Google Sheets. Fazem só a captura, sem agente nem análise.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>O que cada caminho cobre dos seus requisitos</h2>
+
+      <div class="tablewrap">
+        <table class="matrix">
+          <thead>
+            <tr>
+              <th>Requisito</th>
+              <th>Bots BR<br>pagos</th>
+              <th>Apps BR<br>clássicos</th>
+              <th>Self-host<br>+ template</th>
+              <th>Seu<br>projeto</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Registro por mensagem, texto e áudio</td>
+              <td><span class="mk y">●</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Bot dentro de um grupo, os dois lançando</td>
+              <td><span class="mk p">◐</span></td><td><span class="mk n">○</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Aprende com as suas correções</td>
+              <td><span class="mk p">◐</span></td><td><span class="mk n">○</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Dívidas com amortização e data de quitação</td>
+              <td><span class="mk p">◐</span></td><td><span class="mk p">◐</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Insight proativo ligado à renda da casa</td>
+              <td><span class="mk y">●</span></td><td><span class="mk p">◐</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Sua base, seu SQL, seus dados</td>
+              <td><span class="mk n">○</span></td><td><span class="mk n">○</span></td><td><span class="mk y">●</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Vira produto que você vende</td>
+              <td><span class="mk n">○</span></td><td><span class="mk n">○</span></td><td><span class="mk p">◐</span></td><td><span class="mk y">●</span></td></tr>
+            <tr><td>Funciona amanhã, sem você construir nada</td>
+              <td><span class="mk y">●</span></td><td><span class="mk y">●</span></td><td><span class="mk p">◐</span></td><td><span class="mk n">○</span></td></tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="legend"><span><span class="mk y">●</span> cobre</span><span><span class="mk p">◐</span> parcial ou não confirmado</span><span><span class="mk n">○</span> não cobre</span></p>
+    </section>
+
+    <section>
+      <h2>Custo lado a lado</h2>
+
+      <p>Com o dólar em torno de R$ 5,19, o seu projeto rodando num VPS custa entre <strong>R$ 26 e R$ 78 por mês</strong> &mdash; a maior parte disso é o VPS, e o LLM some no arredondamento. Comparando o que interessa, o custo mensal para o casal:</p>
+
+      <div class="tablewrap">
+        <table>
+          <thead>
+            <tr><th>Opção</th><th>Por mês</th><th>Em 24 meses</th><th>Além do dinheiro</th></tr>
+          </thead>
+          <tbody>
+            <tr><td class="name">Mobills</td><td class="price">R$ 8,40</td><td class="price">R$ 200</td><td>Sem bot. Não resolve o que você pediu.</td></tr>
+            <tr><td class="name">Financinha (manual)</td><td class="price">R$ 29,49</td><td class="price">R$ 708</td><td>Funciona amanhã. Dados na casa deles.</td></tr>
+            <tr><td class="name">ZapGastos Plus</td><td class="price">R$ 29,90</td><td class="price">R$ 718</td><td>Funciona amanhã, com Open Finance.</td></tr>
+            <tr><td class="name">Seu projeto</td><td class="price">R$ 26 &ndash; 78</td><td class="price">R$ 620 &ndash; 1.870</td><td>Umas 40&ndash;60 horas suas até a Fase 3, e manutenção depois.</td></tr>
+            <tr><td class="name">Seu projeto<br><small>em VPS que já existe</small></td><td class="price">≈ R$ 2</td><td class="price">≈ R$ 50</td><td>Só o LLM. As mesmas horas.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p>A linha que muda a conversa é a última: se você já tem um VPS rodando outra coisa, o custo marginal do projeto é o LLM, e aí ele é dez vezes mais barato que qualquer assinatura. Se não tem, o VPS empata o jogo &mdash; e a decisão passa a ser sobre controle e aprendizado, não sobre preço.</p>
+    </section>
+
+    <section>
+      <h2>Leitura estratégica</h2>
+
+      <p><strong>O mercado validou a ideia e commoditizou a parte fácil.</strong> "Bot que registra gasto por mensagem com IA" deixou de ser diferencial em 2026 &mdash; tem template gratuito de n8n fazendo isso. Se o objetivo fosse só registrar gasto, assinar era o certo.</p>
+
+      <p><strong>O que continua vago no mercado é o resto.</strong> Ninguém posicionou um produto em cima de <em>grupo do Telegram para casal</em>, e a parte de dívida com amortização e data de quitação real aparece bem em um único produto, ainda em alpha e grátis. É onde estaria o seu diferencial, se a Fase 5 acontecer.</p>
+
+      <p><strong>E há um risco de mercado a considerar.</strong> Os três concorrentes BR mais próximos são novos, e um deles está em alpha grátis. Isso significa preço instável e possibilidade de sumiço &mdash; argumento a favor de ter os seus dados na sua base, mesmo que você assine algo por enquanto.</p>
+
+      <div class="note">
+        <span class="tag">O que eu faria</span>
+        <p>Assinar a Financinha por um mês (R$ 29,49, com usuários colaborativos ilimitados) e usar com sua esposa por duas semanas, com uma pergunta na cabeça: <em>vocês dois realmente lançam?</em> Se a resposta for não, o projeto inteiro estava resolvendo o problema errado e você economizou 50 horas. Se for sim, você volta para a Fase 0 sabendo exatamente o que o produto pronto não faz &mdash; e essa lista vira o seu escopo.</p>
+      </div>
+    </section>
+
+    <footer>
+      Preços consultados em 28/08/2026, diretamente nas páginas oficiais quando disponíveis.<br>
+      <a href="https://zapgastos.com/planos">ZapGastos</a> ·
+      <a href="https://financinha.com.br/">Financinha</a> ·
+      <a href="https://finanbot.com.br/">FinanBot</a> ·
+      <a href="https://www.mobills.com.br/pricing/">Mobills</a> ·
+      <a href="https://www.organizze.com.br/planos/">Organizze</a> ·
+      <a href="https://walletgrower.com/compare/ynab-vs-monarch-vs-copilot">YNAB / Monarch / Copilot</a> ·
+      <a href="https://github.com/may-cat/firefly-iii-telegram-bot">Firefly III Telegram bot</a> ·
+      <a href="https://n8n.io/workflows/6210-automatic-expense-tracking-with-telegram-ai-and-google-sheets/">Template n8n</a> ·
+      <a href="https://www.tabnews.com.br/RobertoManica/pitch-criei-um-bot-que-registra-gastos-por-mensagem-de-voz-no-telegram">FinancaAssistenteBot</a> ·
+      <a href="https://br.investing.com/currencies/usd-brl">câmbio USD/BRL</a>
+    </footer>
+
+  </main>
+</div>
+
+</body>
+</html>
