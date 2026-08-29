@@ -1,0 +1,39 @@
+# n8n de ensaio — roda no seu Mac, sem HTTPS e sem Caddy.
+#
+# Serve para importar o workflow, olhar os nós de perto e rodar o pipeline com
+# dados fixos antes de existir qualquer VM na Oracle. Não é produção: para isso
+# use terraform/ (oficial) ou stack-manual/.
+#
+#   cd local && cp env.example .env && $EDITOR .env
+#   docker compose up -d      →  http://localhost:5678
+#   docker compose down       (os dados ficam no volume n8n_ensaio)
+#   docker compose down -v    apaga o volume e comeca do zero
+services:
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=http
+      - WEBHOOK_URL=http://localhost:5678/
+      - N8N_EDITOR_BASE_URL=http://localhost:5678/
+      # sem HTTPS o cookie seguro impede o login
+      - N8N_SECURE_COOKIE=false
+      - GENERIC_TIMEZONE=America/Sao_Paulo
+      - TZ=America/Sao_Paulo
+      # o nó Gemini lê a chave como {{ $env.GEMINI_API_KEY }}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
+      # a mesma chave do ensaio e da produção deixaria as credenciais migrarem;
+      # aqui é de propósito uma chave só de teste
+      - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}
+      - N8N_RUNNERS_ENABLED=true
+      - N8N_DIAGNOSTICS_ENABLED=false
+    volumes:
+      - n8n_ensaio:/home/node/.n8n
+
+volumes:
+  n8n_ensaio:

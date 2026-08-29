@@ -1,0 +1,32 @@
+{"texto":"85 no mercado","esperado":{"eh_lancamento":true,"tipo":"saida","valor":85,"categoria":"Mercado"}}
+{"texto":"gastei 85,50 no assai ontem","esperado":{"eh_lancamento":true,"tipo":"saida","valor":85.5,"categoria":"Mercado","data":"ONTEM"}}
+{"texto":"almoço 32","esperado":{"eh_lancamento":true,"tipo":"saida","valor":32,"categoria":"Alimentacao"}}
+{"texto":"almoco 32 reais","esperado":{"eh_lancamento":true,"tipo":"saida","valor":32,"categoria":"Alimentacao"}}
+{"texto":"caiu o salário 6200","esperado":{"eh_lancamento":true,"tipo":"entrada","valor":6200,"categoria":"Salario"}}
+{"texto":"recebi 450 do freela","esperado":{"eh_lancamento":true,"tipo":"entrada","valor":450}}
+{"texto":"uber 23,90","esperado":{"eh_lancamento":true,"tipo":"saida","valor":23.9,"categoria":"Transporte"}}
+{"texto":"gasolina 200","esperado":{"eh_lancamento":true,"tipo":"saida","valor":200,"categoria":"Transporte"}}
+{"texto":"boleto da luz 210","esperado":{"eh_lancamento":true,"tipo":"saida","valor":210,"categoria":"Moradia"}}
+{"texto":"aluguel 2300 pago hoje","esperado":{"eh_lancamento":true,"tipo":"saida","valor":2300,"categoria":"Moradia","data":"HOJE"}}
+{"texto":"farmacia 78,40","esperado":{"eh_lancamento":true,"tipo":"saida","valor":78.4,"categoria":"Saude"}}
+{"texto":"consulta da dentista 250","esperado":{"eh_lancamento":true,"tipo":"saida","valor":250,"categoria":"Saude"}}
+{"texto":"cinema 60 pros dois","esperado":{"eh_lancamento":true,"tipo":"saida","valor":60,"categoria":"Lazer"}}
+{"texto":"ifood 47,80","esperado":{"eh_lancamento":true,"tipo":"saida","valor":47.8,"categoria":"Alimentacao"}}
+{"texto":"netflix 44,90","esperado":{"eh_lancamento":true,"tipo":"saida","valor":44.9,"categoria":"Assinaturas"}}
+{"texto":"spotify 21,90 debitou","esperado":{"eh_lancamento":true,"tipo":"saida","valor":21.9,"categoria":"Assinaturas"}}
+{"texto":"racao do cachorro 189","esperado":{"eh_lancamento":true,"tipo":"saida","valor":189,"categoria":"Pets"}}
+{"texto":"vacina da gata 120","esperado":{"eh_lancamento":true,"tipo":"saida","valor":120,"categoria":"Pets"}}
+{"texto":"camisa 129,90","esperado":{"eh_lancamento":true,"tipo":"saida","valor":129.9,"categoria":"Vestuario"}}
+{"texto":"presente da minha mãe 150","esperado":{"eh_lancamento":true,"tipo":"saida","valor":150,"categoria":"Presentes"}}
+{"texto":"curso de ingles 380","esperado":{"eh_lancamento":true,"tipo":"saida","valor":380,"categoria":"Educacao"}}
+{"texto":"apliquei 1000 no tesouro","esperado":{"eh_lancamento":true,"tipo":"saida","valor":1000,"categoria":"Investimento"}}
+{"texto":"paguei 1.250,00 do ipva","esperado":{"eh_lancamento":true,"tipo":"saida","valor":1250},"nota":"milhar com ponto e centavos com virgula"}
+{"texto":"mercado 85 sexta","esperado":{"eh_lancamento":true,"tipo":"saida","valor":85,"categoria":"Mercado","data":"SEXTA_PASSADA"}}
+{"texto":"padaria 12 e farmacia 30","esperado":{"eh_lancamento":true,"tipo":"saida"},"nota":"dois gastos numa mensagem — hoje o schema so devolve um. Ver o que ele escolhe"}
+{"texto":"12x de 89,90 no fone","esperado":{"eh_lancamento":true,"tipo":"saida"},"nota":"parcelamento nao esta no escopo do MVP. Aceitavel: 89,90 ou 1078,80 — o que importa e nao inventar"}
+{"texto":"vou no mercado as 8","esperado":{"eh_lancamento":false},"nota":"tem digito, passa pela triagem, mas nao e gasto"}
+{"texto":"te amo 3000","esperado":{"eh_lancamento":false},"nota":"o classico falso positivo"}
+{"texto":"que horas você chega","esperado":{"eh_lancamento":false},"nota":"sem digito — a triagem descarta antes do LLM"}
+{"texto":"bom dia amor","esperado":{"eh_lancamento":false},"nota":"conversa comum do grupo"}
+{"texto":"o mercado tava 20% mais caro hoje","esperado":{"eh_lancamento":false},"nota":"numero sem valor gasto"}
+{"texto":"lembra de pagar os 200 do condominio amanha","esperado":{"eh_lancamento":false},"nota":"intencao futura, nao gasto. Se marcar true, o prompt precisa de regra"}
