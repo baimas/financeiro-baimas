@@ -19,7 +19,7 @@ dashboard/       a página que lê a planilha publicada em CSV
 planilha/        o cabeçalho da aba Lancamentos
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 local/           n8n de ensaio no seu computador, sem HTTPS e sem VM
-scripts/         checar o bot e testar o parser antes de subir qualquer coisa
+scripts/         checar o bot, testar o parser e abrir o dashboard sem planilha
 testes/          32 mensagens reais com o resultado esperado
 ```
 
@@ -79,7 +79,12 @@ preencher, `make plan` (ler o plano) e `make up`. Assim que o certificado sair,
 colar `CHAT_ID` e `MEMBROS` no nó *Triagem e prompt*, ativar.
 
 **7. Dashboard** — colar a URL do CSV em `CSV_URL` dentro de
-`dashboard/index.html` e publicar no GitHub Pages.
+`dashboard/index.html` e publicar no GitHub Pages. Para ver a página funcionando
+antes de existir planilha, com lançamentos de exemplo:
+
+```bash
+scripts/dashboard-local.sh         # http://localhost:8899
+```
 
 ## As duas armadilhas
 
