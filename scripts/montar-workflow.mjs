@@ -18,7 +18,9 @@ const SAIDA = join(RAIZ, "n8n", "gastos-ingestao.n8n.json");
 
 const CRED_TELEGRAM = { telegramApi: { id: "SUBSTITUA", name: "Telegram — bot de gastos" } };
 const CRED_SHEETS = { googleApi: { id: "SUBSTITUA", name: "Google Service Account — gastos" } };
-const PLANILHA = { __rl: true, value: "SEU_SPREADSHEET_ID", mode: "id" };
+// A planilha da casa. Os ids de credencial seguem "SUBSTITUA": o n8n gera o
+// seu próprio id ao criar a credencial, então esses dois se ligam na interface.
+const PLANILHA = { __rl: true, value: "1w60kGXBH1vVOGQZSHpWybrtXl9KiSgOabvp2QQS7aRI", mode: "id" };
 const aba = (nome) => ({ __rl: true, value: nome, mode: "name" });
 
 const code = (nome, arquivo, x, y) => ({
