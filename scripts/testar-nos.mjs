@@ -205,6 +205,12 @@ await teste("sem cabeçalho nenhum não autoriza", () => {
 await teste("servidor sem DASHBOARD_TOKEN recusa até o token certo", () => {
   igual(conferir([CHAVE], SEGREDO, {}).autorizado, false, "autorizado");
 });
+await teste("segredo curto demais no servidor não vale, mesmo batendo", () => {
+  igual(conferir([CHAVE], "curto", { DASHBOARD_TOKEN: "curto" }).autorizado, false, "autorizado");
+});
+await teste("segredo de 10 caracteres, do tipo que se digita no celular, vale", () => {
+  igual(conferir([CHAVE], "Agora2000#", { DASHBOARD_TOKEN: "Agora2000#" }).autorizado, true, "autorizado");
+});
 await teste("pedido é limitado a 50 chaves", () => {
   const muitas = Array.from({ length: 80 }, (_, i) => ({ ...CHAVE, update_id: String(i) }));
   igual(conferir(muitas, SEGREDO).chaves.length, 50, "chaves");

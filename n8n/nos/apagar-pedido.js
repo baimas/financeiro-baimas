@@ -13,7 +13,12 @@ const esperado = String($env.DASHBOARD_TOKEN || '').trim();
 
 // Servidor sem token configurado não apaga nada. O contrário — aceitar tudo
 // enquanto falta configuração — transformaria um esquecimento em porta aberta.
-const autorizado = esperado.length >= 16 && enviado === esperado;
+//
+// O mínimo é 8 porque o segredo é digitado no celular, e um que ninguém
+// consegue digitar acaba não sendo usado. Ele não é a única barreira: mesmo com
+// o token, só some a linha cujo update_id e criado_em o pedido acertar por
+// inteiro — não dá para varrer a planilha às cegas.
+const autorizado = esperado.length >= 8 && enviado === esperado;
 
 // Teto de 50 por pedido: engano na tela não vira estrago em massa.
 const chaves = (Array.isArray(corpo.chaves) ? corpo.chaves : [])
