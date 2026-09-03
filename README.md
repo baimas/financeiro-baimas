@@ -47,7 +47,7 @@ apontado.
 **1. Ensaio, sem conta nenhuma** — já feito e versionado:
 
 ```bash
-node scripts/testar-nos.mjs        # 43 testes offline dos code nodes, ~1s
+node scripts/testar-nos.mjs        # 56 testes offline dos code nodes, ~1s
 cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
@@ -132,7 +132,7 @@ Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
 node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
-node scripts/testar-nos.mjs           # 43 testes offline, ~1s
+node scripts/testar-nos.mjs           # 56 testes offline, ~1s
 scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
 
@@ -142,7 +142,23 @@ categorias ou a regra de fatura? Rode os dois antes de ativar.
 
 ## Apagar um lançamento
 
-Pelo dashboard: marque as caixinhas na tabela do mês e clique em *Apagar
+**Pelo grupo**, de dois jeitos:
+
+| Você manda | O que sai |
+|---|---|
+| `apagar` | o **seu** último lançamento (todos os gastos daquela mensagem) |
+| responder a uma mensagem e escrever `apagar` | o lançamento **daquela** mensagem, de qualquer dia |
+
+Serve responder tanto ao gasto que você mandou quanto à confirmação do bot. Sem
+apontar para uma mensagem, cada um só apaga o que registrou — ninguém apaga o
+lançamento do outro sem querer.
+
+Isso exige uma ponte que o Telegram não dá: a mensagem respondida chega sem o
+reply dela, então não há como voltar da confirmação até a linha. O nó *Lembrar
+confirmação* guarda esse vínculo no estado do workflow, pelos dois ids, com teto
+de 400 mensagens. Lançamento mais antigo que isso ainda sai pelo dashboard.
+
+**Pelo dashboard**: marque as caixinhas na tabela do mês e clique em *Apagar
 selecionados*. O navegador pede o segredo uma vez e o guarda; quem apaga é o
 webhook `POST /webhook/apagar-lancamentos` no n8n, porque uma página estática
 não tem — nem deve ter — credencial de escrita na planilha.
@@ -203,6 +219,7 @@ timeout.
 | `caiu o salário 7000` | entrada |
 | `vou pagar o aluguel amanha` | nada — intenção futura não é lançamento |
 | `te amo 3000` | nada |
+| `apagar` | apaga o seu último lançamento |
 
 ## Critério de parada
 
