@@ -5,6 +5,11 @@ web por cima. Uso pessoal, custo zero.
 
 **Arquitetura ativa:** `Grupo do Telegram → n8n → Gemini → Google Sheets → dashboard estático`
 
+**No ar desde 03/09/2026.** O primeiro lançamento de verdade — "Mercado 20,00
+Nubank Vini" no grupo — virou linha na aba `Lancamentos` com a competência e a
+fatura certas, e o bot respondeu citando a mensagem. O n8n roda numa VM
+Always Free da Oracle atrás de um Caddy com HTTPS.
+
 Comece por `plano/01-mvp-simples.md` e siga o roteiro em
 `docs-visuais/guia-mvp.html` (abra no navegador).
 
@@ -20,7 +25,7 @@ planilha/        as cinco abas, com modelo e instruções
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 local/           n8n de ensaio no seu computador, sem HTTPS e sem VM
 scripts/         checar o bot, testar o parser e abrir o dashboard sem planilha
-testes/          32 mensagens reais com o resultado esperado
+testes/          43 mensagens reais com o resultado esperado
 ```
 
 ### plano/
@@ -42,7 +47,7 @@ apontado.
 **1. Ensaio, sem conta nenhuma** — já feito e versionado:
 
 ```bash
-node scripts/testar-nos.mjs        # 15 testes offline dos code nodes, ~1s
+node scripts/testar-nos.mjs        # 31 testes offline dos code nodes, ~1s
 cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
@@ -52,7 +57,7 @@ cd local && cp env.example .env && docker compose up -d   # n8n em localhost:567
 
 ```bash
 export GEMINI_API_KEY=AIza...
-scripts/testar-parser.mjs          # 32 mensagens reais contra o parser de verdade
+scripts/testar-parser.mjs          # 43 mensagens reais contra o parser de verdade
 ```
 
 **3. Bot e grupo** — BotFather, `/setprivacy` → **Disable**, criar o grupo,
@@ -86,13 +91,32 @@ antes de existir planilha, com lançamentos de exemplo:
 scripts/dashboard-local.sh         # http://localhost:8899
 ```
 
-## As duas armadilhas
+## As armadilhas
+
+Todas custaram tempo de verdade. As duas primeiras aparecem antes de existir
+VM; as outras três só depois que tudo já está no ar.
 
 - **Privacy mode do BotFather.** Se ficar ligado, a mensagem nunca chega ao
   webhook e nenhum erro aparece em lugar nenhum. `scripts/checar-bot.sh` existe
   exatamente para isso.
 - **iptables da Oracle.** Abrir 80/443 na security list não basta; as imagens
   Ubuntu descartam tudo. O cloud-init do Terraform já resolve.
+- **Publicado e teste não coexistem** no Telegram Trigger. Com o workflow
+  publicado, "Executar workflow" só rende `n8n can't listen for test executions
+  at the same time as listening for production ones` nos logs. A mensagem do
+  grupo roda em produção e aparece na aba **Executions**, nunca no canvas. E
+  depois de testar em unpublish, **republique**.
+- **Abrir um nó do Google Sheets na interface estraga a configuração dele**, em
+  silêncio: o campo da aba volta para "From list" e fica vazio
+  (`Sheet with name  not found`), e o mapeamento pula de "Map Automatically"
+  para manual sem nenhuma coluna (`At least one value has to be added under
+  'Values to Send'`). Depois de mexer num nó do Sheets, confira os dois campos
+  antes de publicar.
+- **O volume de dados pode não montar.** `/dev/oracleoci/oraclevdb` não existe
+  em toda imagem; quando falta, o n8n sobe gravando no disco de boot, que morre
+  com a instância. O cloud-init agora procura pelo LABEL `n8ndados` e falha alto
+  se não montar — mas antes de destruir qualquer VM, confira
+  `findmnt /opt/n8n-data`.
 
 ## Nunca perca
 
@@ -112,6 +136,37 @@ scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 Os dois scripts de teste leem o workflow e executam os **próprios code nodes**
 num sandbox — o que eles aprovam é o que roda em produção. Mudou o prompt, as
 categorias ou a regra de fatura? Rode os dois antes de ativar.
+
+## Operação, com a VM no ar
+
+```bash
+cd terraform && make ssh          # entra na máquina
+cd terraform && make logs         # logs do n8n e do Caddy
+cd terraform && make stop/start   # desliga e religa sem destruir nada
+```
+
+Os logs do n8n são o melhor lugar para ver o que aconteceu com uma mensagem:
+`sudo docker logs --timestamps --since 10m n8n-n8n-1`. A VM está em UTC e o
+grupo em São Paulo — três horas de diferença. O Caddy só registra erros, então
+um webhook que deu certo não aparece nos logs dele.
+
+Dá para consertar o workflow **sem abrir a interface** (a API REST não serve: a
+key dela só se cria na UI):
+
+```bash
+sudo docker exec n8n-n8n-1 n8n export:workflow --all --pretty --output=/home/node/.n8n/wf.json
+# edite o JSON
+sudo docker exec n8n-n8n-1 n8n import:workflow --input=/home/node/.n8n/wf.json
+sudo docker exec n8n-n8n-1 n8n publish:workflow --id=<id>
+```
+
+As credenciais sobrevivem ao import — o workflow guarda só o id delas. O import
+derruba a publicação, por isso o `publish:workflow` no fim.
+
+O nó do Gemini tem timeout de 120 s e três tentativas de propósito: o
+`flash-lite` respondeu à mesma chamada de duas palavras em 1,4 s, 7,7 s e 29 s
+no mesmo minuto, e devolve 503 quando está sobrecarregado. Não baixe esse
+timeout.
 
 ## O que o bot entende
 

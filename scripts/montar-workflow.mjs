@@ -79,13 +79,21 @@ const wf = {
         sendBody: true,
         specifyBody: "json",
         jsonBody: "={{ JSON.stringify($json.payload) }}",
-        options: { timeout: 20000 },
+        // O flash-lite oscila muito: a mesma chamada de duas palavras respondeu
+        // em 1,4 s, 7,7 s e 29 s no mesmo minuto, e devolve 503 quando está
+        // sobrecarregado. Com 20 s a mensagem do grupo se perdia à toa.
+        options: { timeout: 120000 },
       },
       id: "a1000000-0000-4000-8000-000000000006",
       name: "Gemini",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
       position: [880, 300],
+      // 503 e timeout do Gemini são transitórios: tentar de novo custa menos
+      // que perder o lançamento e ter que redigitar a mensagem no grupo.
+      retryOnFail: true,
+      maxTries: 3,
+      waitBetweenTries: 3000,
     },
     code("Validar", "validar.js", 1120, 300),
     {
