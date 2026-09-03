@@ -130,17 +130,32 @@ runcmd:
     fi
 
   # ── 3. volume de dados: espera anexar, formata se for a primeira vez ────────
+  # /dev/oracleoci/oraclevdb não existe em toda imagem: em 03/09/2026 a VM subiu
+  # com o volume anexado como /dev/sdb e sem esse symlink, o loop expirou em
+  # silêncio e o n8n passou uma tarde gravando no disco de boot — que morre com
+  # a instância. Por isso aqui procura-se primeiro o LABEL (volume já em uso, o
+  # nome do device pode mudar) e só depois os nomes possíveis do disco novo.
   - |
-    DEV=/dev/oracleoci/oraclevdb
-    for i in $(seq 1 60); do [ -b "$DEV" ] && break; sleep 5; done
-    if [ -b "$DEV" ]; then
-      if ! blkid "$DEV" >/dev/null 2>&1; then
-        mkfs.ext4 -F -L n8ndados "$DEV"
+    DEV=""
+    for i in $(seq 1 60); do
+      if blkid -L n8ndados >/dev/null 2>&1; then
+        DEV=$(blkid -L n8ndados); break
       fi
+      for c in /dev/oracleoci/oraclevdb /dev/sdb /dev/nvme1n1; do
+        [ -b "$c" ] && DEV="$c" && break
+      done
+      [ -n "$DEV" ] && break
+      sleep 5
+    done
+    if [ -n "$DEV" ] && [ -b "$DEV" ]; then
+      blkid "$DEV" >/dev/null 2>&1 || mkfs.ext4 -F -L n8ndados "$DEV"
       mkdir -p /opt/n8n-data
-      grep -q "$DEV" /etc/fstab || \
-        echo "$DEV /opt/n8n-data ext4 defaults,_netdev,nofail 0 2" >> /etc/fstab
+      grep -q n8ndados /etc/fstab || \
+        echo "LABEL=n8ndados /opt/n8n-data ext4 defaults,_netdev,nofail 0 2" >> /etc/fstab
       mount -a
+      # Sem isso o n8n subiria num diretório vazio e criaria um banco novo,
+      # com as credenciais antigas perdidas e nenhum erro na tela.
+      findmnt /opt/n8n-data >/dev/null || exit 1
     else
       # Sem volume anexado, segue em disco local para não travar o boot.
       mkdir -p /opt/n8n-data
