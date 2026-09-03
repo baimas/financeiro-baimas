@@ -254,13 +254,35 @@ await teste("linha já apagada por fora não vira erro", () => {
   igual(r[0].nada, true, "nada");
   if (!r[0].recado.includes("não está mais")) throw new Error(r[0].recado);
 });
+// O que o nó do Google Sheets devolve depois de apagar: o resultado dele, sem
+// nada do que veio antes. É por isso que o aviso lê "Escolher para apagar" e
+// não a própria entrada — ler a entrada rendia "apaguei undefined: R$ NaN".
+const DEPOIS_DO_SHEETS = [{ success: true }, { success: true }];
+
 await teste("o aviso no grupo diz o que sumiu", () => {
   const src = triar("apagar");
   const escolhidas = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
-  const aviso = fabricarRunner()("Avisar exclusão", escolhidas, { Triagem: src })[0];
+  const aviso = fabricarRunner()("Avisar exclusão", DEPOIS_DO_SHEETS,
+    { Triagem: src, "Escolher para apagar": escolhidas })[0];
   if (!aviso.texto_resposta.includes("R$ 30,00")) throw new Error(aviso.texto_resposta);
   if (!aviso.texto_resposta.includes("Farmácia")) throw new Error(aviso.texto_resposta);
+  if (/undefined|NaN/.test(aviso.texto_resposta)) throw new Error(aviso.texto_resposta);
   igual(aviso.chat_id, src.chat_id, "chat");
+});
+await teste("um lançamento só: o aviso nomeia o alvo e o valor", () => {
+  const src = { ...triar("apagar"), pessoa: "Lidia" };
+  const escolhidas = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  const aviso = fabricarRunner()("Avisar exclusão", [{ success: true }],
+    { Triagem: src, "Escolher para apagar": escolhidas })[0];
+  igual(aviso.texto_resposta, "apaguei seu último lançamento:\n− R$ 30,00 · Mercado · Nubank Lidia", "texto");
+});
+await teste("quando não achou, o aviso repete o recado e não inventa valor", () => {
+  const src = { ...triar("apagar"), responde_a: 12345 };
+  const escolhidas = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  const aviso = fabricarRunner()("Avisar exclusão", escolhidas,
+    { Triagem: src, "Escolher para apagar": escolhidas })[0];
+  if (/undefined|NaN/.test(aviso.texto_resposta)) throw new Error(aviso.texto_resposta);
+  if (!aviso.texto_resposta.includes("não sei")) throw new Error(aviso.texto_resposta);
 });
 
 console.log("\nApagar lançamentos");
