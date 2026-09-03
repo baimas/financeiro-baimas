@@ -110,6 +110,20 @@ tfoot td{border-top:1px solid var(--rule);border-bottom:none;font-weight:600}
 .fatura li{display:flex;justify-content:space-between;gap:10px;padding:3px 0}
 .fatura li span:last-child{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
 
+.selbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 12px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--muted)}
+.selbar button{font-family:"IBM Plex Mono",monospace;font-size:11.5px;padding:6px 12px;
+  border:1px solid var(--rule);border-radius:6px;background:var(--surface);
+  color:var(--ink);cursor:pointer}
+.selbar button:hover:not(:disabled){border-color:var(--accent)}
+.selbar button.perigo:not(:disabled){border-color:var(--saida);color:var(--saida)}
+.selbar button:disabled{opacity:.4;cursor:default}
+.selbar .recado{color:var(--alerta)}
+.selbar .feito{color:var(--entrada)}
+th.sel,td.sel{width:32px;padding-right:0}
+input[type=checkbox]{accent-color:var(--accent);width:15px;height:15px;cursor:pointer;margin:0}
+tr.marcada td{background:var(--surface-2)}
+
 #tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .1s;
   background:var(--ink);color:var(--ground);font-family:"IBM Plex Mono",monospace;
   font-size:11.5px;line-height:1.5;padding:7px 10px;border-radius:5px;white-space:pre;
@@ -155,6 +169,11 @@ const CSV = {
   dividas:     "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQ4wOtYo2sdS04RYiadtaiiqgSmgt2H2DHHalljs-p8qLPJ7Fylgvpl-ve2r6mCOPYyplZMtyy-JoW/pub?gid=2010798044&single=true&output=csv",
   plr:         "https://docs.google.com/spreadsheets/d/e/2PACX-1vQQ4wOtYo2sdS04RYiadtaiiqgSmgt2H2DHHalljs-p8qLPJ7Fylgvpl-ve2r6mCOPYyplZMtyy-JoW/pub?gid=1867345037&single=true&output=csv",
 };
+
+// Apagar lançamentos daqui exige o webhook do n8n — uma página estática não tem
+// como escrever na planilha sozinha. Deixe "" para esconder a seleção.
+// O segredo NÃO mora aqui: ele é pedido uma vez e guardado no navegador.
+const APAGAR = "https://n8n-financeiro-baimas.duckdns.org/webhook/apagar-lancamentos";
 // ────────────────────────────────────────────────────────────────────────────
 
 const brl  = v => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0});
@@ -359,20 +378,108 @@ function graficoHistorico(){
   svg.querySelectorAll('g').forEach(g=>bindTip(g,g.querySelector('.hit').dataset.tip));
 }
 
+// Só dá para apagar o que tem chave: lançamento gravado antes de existir a
+// coluna criado_em fica na tabela, mas sem caixinha.
+const podeApagar = t => Boolean(APAGAR && t.update_id && t.criado_em);
+
+let tabelaAtual = [];          // o que está na tela, na ordem em que aparece
+const marcadas = new Set();    // índices de tabelaAtual
+
 function secaoTabela(itens){
   const ord=[...itens].sort((a,b)=> a.data<b.data?1:a.data>b.data?-1:0);
-  const corpo = ord.length ? ord.map(t=>`
-    <tr><td class="mono">${esc(t.data.slice(8)+'/'+t.data.slice(5,7))}</td>
+  tabelaAtual = ord;
+  marcadas.clear();
+  const comSelecao = APAGAR && ord.some(podeApagar);
+  const cols = comSelecao ? 7 : 6;
+  const corpo = ord.length ? ord.map((t,i)=>`
+    <tr data-i="${i}">${comSelecao ? `<td class="sel">${podeApagar(t)
+        ? `<input type="checkbox" data-i="${i}" aria-label="Selecionar ${esc(t.descricao||t.categoria)}">`
+        : ''}</td>` : ''}
+      <td class="mono">${esc(t.data.slice(8)+'/'+t.data.slice(5,7))}</td>
       <td><span class="tag ${t.tipo==='entrada'?'in':t.tipo==='investimento'?'inv':'out'}">${esc(t.categoria)}</span></td>
       <td>${esc(t.descricao||'—')}</td>
       <td class="mono">${esc(t.forma&&t.forma!=='Não informado'?t.forma:'—')}</td>
       <td class="mono">${esc(t.pessoa||'—')}</td>
       <td class="n">${esc(brl2(t.valor))}</td></tr>`).join('')
-    : '<tr><td colspan="6" class="vazio">nada lançado neste mês ainda</td></tr>';
+    : `<tr><td colspan="${cols}" class="vazio">nada lançado neste mês ainda</td></tr>`;
+  const barra = comSelecao ? `<div class="selbar" id="selbar">
+      <span id="selconta">nenhum selecionado</span>
+      <button type="button" id="apagar" class="perigo" disabled>Apagar selecionados</button>
+      <span id="selrecado"></span></div>` : '';
   return cartao('Lançamentos do mês', `${ord.length} lançamento(s), do mais recente para o mais antigo`,
-    `<div class="tablebox"><table class="wide">
-      <thead><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Como</th><th>Quem</th><th class="n">Valor</th></tr></thead>
+    barra + `<div class="tablebox"><table class="wide">
+      <thead><tr>${comSelecao?'<th class="sel"></th>':''}<th>Data</th><th>Categoria</th><th>Descrição</th><th>Como</th><th>Quem</th><th class="n">Valor</th></tr></thead>
       <tbody>${corpo}</tbody></table></div>`);
+}
+
+// ─── apagar ─────────────────────────────────────────────────────────────────
+function atualizarBarra(){
+  const conta=document.getElementById('selconta'), bt=document.getElementById('apagar');
+  if(!conta||!bt) return;
+  const soma=[...marcadas].reduce((a,i)=>a+(tabelaAtual[i]?.valor||0),0);
+  conta.textContent = marcadas.size
+    ? `${marcadas.size} selecionado(s) · ${brl2(soma)}`
+    : 'nenhum selecionado';
+  bt.disabled = !marcadas.size;
+}
+
+function recado(texto, classe=''){
+  const el=document.getElementById('selrecado');
+  if(el){ el.className=classe; el.textContent=texto; }
+}
+
+// O segredo fica no navegador de quem usa, nunca neste arquivo — que é público.
+function pegarSegredo(forcar){
+  let t = forcar ? '' : (localStorage.getItem('apagar-token')||'');
+  if(!t){
+    t = (prompt('Segredo para apagar lançamentos (fica guardado neste navegador):')||'').trim();
+    if(t) localStorage.setItem('apagar-token', t);
+  }
+  return t;
+}
+
+async function apagarSelecionados(){
+  const escolhidos=[...marcadas].map(i=>tabelaAtual[i]).filter(Boolean);
+  if(!escolhidos.length) return;
+  const soma=escolhidos.reduce((a,t)=>a+t.valor,0);
+  if(!confirm(`Apagar ${escolhidos.length} lançamento(s), somando ${brl2(soma)}?\n\n`
+    +'As linhas saem da planilha e não há como desfazer.')) return;
+  const segredo=pegarSegredo(false);
+  if(!segredo) return;
+
+  const bt=document.getElementById('apagar');
+  if(bt) bt.disabled=true;
+  recado('apagando…');
+  try{
+    const r=await fetch(APAGAR,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-dashboard-token':segredo},
+      body:JSON.stringify({chaves:escolhidos.map(t=>({
+        update_id:t.update_id, criado_em:t.criado_em, valor:t.valor, descricao:t.descricao,
+      }))}),
+    });
+    const resp=await r.json().catch(()=>({}));
+    if(r.status===401){
+      localStorage.removeItem('apagar-token');
+      recado('segredo recusado — clique de novo para digitar outro','recado');
+      atualizarBarra();
+      return;
+    }
+    if(!r.ok||!resp.ok) throw new Error(resp.motivo||`o n8n respondeu ${r.status}`);
+
+    // Some da tela na hora: o CSV publicado só reflete a exclusão minutos depois
+    const foram=new Set((resp.apagadas||[]).map(a=>a.update_id+'|'+a.criado_em));
+    D.lancamentos=D.lancamentos.filter(t=>!foram.has(t.update_id+'|'+t.criado_em));
+    render();
+    const sobraram=(resp.nao_encontrados||[]).length;
+    recado(`${resp.apagados} apagado(s)`
+      + (sobraram?` · ${sobraram} não encontrado(s) na planilha`:'')
+      + ' · a planilha publicada leva alguns minutos para refletir',
+      sobraram?'recado':'feito');
+  }catch(e){
+    recado('não deu: '+e.message,'recado');
+    atualizarBarra();
+  }
 }
 
 // ─── render ─────────────────────────────────────────────────────────────────
@@ -424,6 +531,24 @@ function render(){
 
   graficoCategorias(itens);
   graficoHistorico();
+  ligarSelecao();
+}
+
+// A tabela é recriada a cada render, então os eventos são religados aqui.
+function ligarSelecao(){
+  const bt=document.getElementById('apagar');
+  if(!bt) return;
+  document.querySelectorAll('#secoes input[type=checkbox][data-i]').forEach(cx=>{
+    cx.addEventListener('change',()=>{
+      const i=Number(cx.dataset.i);
+      if(cx.checked) marcadas.add(i); else marcadas.delete(i);
+      cx.closest('tr')?.classList.toggle('marcada',cx.checked);
+      recado('');
+      atualizarBarra();
+    });
+  });
+  bt.addEventListener('click',apagarSelecionados);
+  atualizarBarra();
 }
 
 // ─── carga ──────────────────────────────────────────────────────────────────
@@ -450,6 +575,10 @@ async function carregar(){
     ]);
 
     D.lancamentos = (lanc||[]).map(l=>({
+      // update_id + criado_em identificam a linha na planilha; sem eles não há
+      // como apagar sem depender da posição, que o CSV mostra com atraso
+      update_id: String(l.update_id??'').trim(),
+      criado_em: String(l.criado_em??'').trim(),
       data: l.data||'',
       competencia: l.competencia || (l.data||'').slice(0,7),
       competencia_fatura: l.competencia_fatura||'',

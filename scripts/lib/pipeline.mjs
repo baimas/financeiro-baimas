@@ -11,8 +11,10 @@ import { dirname, join } from "node:path";
 export const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 const wf = JSON.parse(readFileSync(join(RAIZ, "n8n", "gastos-ingestao.n8n.json"), "utf8"));
+const wfApagar = JSON.parse(readFileSync(join(RAIZ, "n8n", "apagar-lancamentos.n8n.json"), "utf8"));
 export const nodeDo = (nome) => wf.nodes.find((x) => x.name === nome);
 const jsDo = (nome) => nodeDo(nome).parameters.jsCode;
+const jsApagar = (nome) => wfApagar.nodes.find((x) => x.name === nome).parameters.jsCode;
 
 export const URL_GEMINI = nodeDo("Gemini").parameters.url;
 export const MODELO = (URL_GEMINI.match(/models\/([^:]+):/) || [, "?"])[1];
@@ -58,6 +60,35 @@ export const update = (texto, over = {}) => ({
     from: { id: over.from_id ?? FROM_ID, first_name: "Vini" },
     text: texto,
   },
+});
+
+// ── runner do workflow de exclusão ─────────────────────────────────────────
+// Mesma ideia do de cima, com duas diferenças: os code nodes leem $env, e a
+// entrada do primeiro nó é uma requisição HTTP, não um update do Telegram.
+export function fabricarRunnerApagar(env = {}) {
+  return function rodar(nome, entrada, anteriores = {}) {
+    const itens = (v) => ({
+      first: () => ({ json: Array.isArray(v) ? v[0] : v }),
+      all: () => (Array.isArray(v) ? v : [v]).map((j) => ({ json: j })),
+    });
+    const ctx = createContext({
+      $input: itens(Array.isArray(entrada) ? entrada : [entrada]),
+      $: (n) => {
+        if (!(n in anteriores)) throw new Error(`nó "${n}" não executou`);
+        return itens(anteriores[n]);
+      },
+      $env: env,
+      console,
+    });
+    const s = runInContext(`(function(){\n${jsApagar(nome)}\n})()`, ctx, { timeout: 5000 });
+    return Array.isArray(s) ? s.map((i) => i.json) : [];
+  };
+}
+
+// requisição como o nó Webhook entrega: cabeçalhos em minúsculas e corpo já lido
+export const pedidoHttp = (chaves, token) => ({
+  headers: token === undefined ? {} : { "x-dashboard-token": token },
+  body: { chaves },
 });
 
 export const respostaGemini = (lancamentos) => ({

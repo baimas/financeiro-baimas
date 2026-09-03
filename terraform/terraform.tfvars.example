@@ -28,3 +28,6 @@ dominio            = "gastos-casa.duckdns.org"
 gemini_api_key     = "AIza..."
 n8n_encryption_key = "gere com: openssl rand -hex 24"
 duckdns_token      = ""              # preencha para o IP se atualizar sozinho
+# segredo que o dashboard usa para apagar lançamentos (openssl rand -hex 24).
+# Vazio deixa a exclusão desligada.
+dashboard_token    = ""
