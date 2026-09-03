@@ -126,6 +126,13 @@ variable "gemini_api_key" {
   sensitive   = true
 }
 
+variable "dashboard_token" {
+  description = "Segredo que o dashboard manda no cabeçalho para apagar lançamentos. Vazio desliga a exclusão."
+  type        = string
+  sensitive   = true
+  default     = ""
+}
+
 variable "n8n_encryption_key" {
   description = "Chave de criptografia das credenciais do n8n. Gere com: openssl rand -hex 24. Guarde — sem ela as credenciais salvas ficam ilegíveis."
   type        = string

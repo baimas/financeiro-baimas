@@ -19,7 +19,7 @@ Comece por `plano/01-mvp-simples.md` e siga o roteiro em
 plano/           as decisões e a pesquisa, em markdown
 docs-visuais/    os mesmos documentos em HTML, com diagramas e tabelas
 terraform/       a infra na Oracle Cloud Always Free — make up / stop / down
-n8n/             o workflow de ingestão; os code nodes ficam em n8n/nos/*.js
+n8n/             os dois workflows; os code nodes ficam em n8n/nos/*.js
 dashboard/       a página que lê a planilha publicada em CSV
 planilha/        as cinco abas, com modelo e instruções
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
@@ -47,7 +47,7 @@ apontado.
 **1. Ensaio, sem conta nenhuma** — já feito e versionado:
 
 ```bash
-node scripts/testar-nos.mjs        # 31 testes offline dos code nodes, ~1s
+node scripts/testar-nos.mjs        # 43 testes offline dos code nodes, ~1s
 cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
@@ -84,7 +84,10 @@ preencher, `make plan` (ler o plano) e `make up`. Assim que o certificado sair,
 colar `CHAT_ID` e `MEMBROS` no nó *Triagem e prompt*, ativar.
 
 **7. Dashboard** — colar as URLs dos CSVs publicados no objeto `CSV` dentro de
-`dashboard/index.html` e publicar no GitHub Pages. Para ver a página funcionando
+`dashboard/index.html` e publicar no GitHub Pages. Para apagar lançamentos pela
+página, importe também `n8n/apagar-lancamentos.n8n.json`, ligue a credencial do
+Google e preencha `dashboard_token` no `terraform.tfvars` — sem esse segredo o
+webhook recusa tudo e as caixinhas não aparecem. Para ver a página funcionando
 antes de existir planilha, com lançamentos de exemplo:
 
 ```bash
@@ -128,14 +131,33 @@ dentro do n8n. Se mudar, você refaz todas.
 Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
-node scripts/montar-workflow.mjs      # regera n8n/gastos-ingestao.n8n.json
-node scripts/testar-nos.mjs           # 31 testes offline, ~1s
+node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
+node scripts/testar-nos.mjs           # 43 testes offline, ~1s
 scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
 
 Os dois scripts de teste leem o workflow e executam os **próprios code nodes**
 num sandbox — o que eles aprovam é o que roda em produção. Mudou o prompt, as
 categorias ou a regra de fatura? Rode os dois antes de ativar.
+
+## Apagar um lançamento
+
+Pelo dashboard: marque as caixinhas na tabela do mês e clique em *Apagar
+selecionados*. O navegador pede o segredo uma vez e o guarda; quem apaga é o
+webhook `POST /webhook/apagar-lancamentos` no n8n, porque uma página estática
+não tem — nem deve ter — credencial de escrita na planilha.
+
+A página **nunca diz em que linha** o lançamento está: o CSV publicado tem
+minutos de atraso e o bot pode ter gravado outras linhas nesse intervalo. Ela
+manda `update_id` + `criado_em`, e o n8n procura na planilha lida naquele
+instante, conferindo valor e descrição antes de excluir. Divergiu, não apaga.
+
+Sem `DASHBOARD_TOKEN` no ambiente do n8n, o webhook recusa tudo — esquecer de
+configurar não vira porta aberta. O segredo não está no repositório, que é
+público: ele vive no `terraform.tfvars` e no navegador de quem usa.
+
+Pela planilha, sempre dá: exclua a linha inteira na aba `Lancamentos`. O
+`update_id` é o mesmo para todos os lançamentos de uma mesma mensagem.
 
 ## Operação, com a VM no ar
 

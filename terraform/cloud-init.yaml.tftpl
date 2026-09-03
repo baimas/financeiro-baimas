@@ -19,6 +19,7 @@ write_files:
       DOMINIO=${dominio}
       GEMINI_API_KEY=${gemini_api_key}
       N8N_ENCRYPTION_KEY=${n8n_encryption_key}
+      DASHBOARD_TOKEN=${dashboard_token}
       TZ=${timezone}
 
   - path: /opt/n8n/docker-compose.yml
@@ -39,6 +40,9 @@ write_files:
             - GENERIC_TIMEZONE=$${TZ}
             - TZ=$${TZ}
             - GEMINI_API_KEY=$${GEMINI_API_KEY}
+            # segredo que autoriza o dashboard a apagar lançamentos; vazio
+            # deixa o webhook recusando tudo, que é o padrão seguro
+            - DASHBOARD_TOKEN=$${DASHBOARD_TOKEN}
             - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
             - N8N_ENCRYPTION_KEY=$${N8N_ENCRYPTION_KEY}
             - N8N_RUNNERS_ENABLED=true

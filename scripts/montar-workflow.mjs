@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Gera n8n/gastos-ingestao.n8n.json a partir dos code nodes em n8n/nos/*.js.
+// Gera os dois workflows do n8n a partir dos code nodes em n8n/nos/*.js:
+// a ingestão pelo Telegram e a exclusão pedida pelo dashboard.
 //
 // Existe porque JavaScript dentro de string JSON não se mantém: sem destaque de
 // sintaxe, sem `node --check`, e um \n errado quebra tudo em silêncio. Aqui o
@@ -15,6 +16,7 @@ import { dirname, join } from "node:path";
 const RAIZ = join(dirname(fileURLToPath(import.meta.url)), "..");
 const js = (nome) => readFileSync(join(RAIZ, "n8n", "nos", nome), "utf8");
 const SAIDA = join(RAIZ, "n8n", "gastos-ingestao.n8n.json");
+const SAIDA_APAGAR = join(RAIZ, "n8n", "apagar-lancamentos.n8n.json");
 
 const CRED_TELEGRAM = { telegramApi: { id: "SUBSTITUA", name: "Telegram — bot de gastos" } };
 const CRED_SHEETS = { googleApi: { id: "SUBSTITUA", name: "Google Service Account — gastos" } };
@@ -136,23 +138,153 @@ const wf = {
   active: false,
 };
 
-// a cadeia é linear: cada nó alimenta o seguinte
+// a cadeia da ingestão é linear: cada nó alimenta o seguinte
 const ordem = wf.nodes.map((n) => n.name);
 for (let i = 0; i < ordem.length - 1; i++) {
   wf.connections[ordem[i]] = { main: [[{ node: ordem[i + 1], type: "main", index: 0 }]] };
 }
 
-const json = JSON.stringify(wf, null, 2) + "\n";
+// ── workflow 2: apagar lançamentos, pedido pelo dashboard ───────────────────
+// Não é linear: dois desvios (pedido não autorizado, nada a apagar) desembocam
+// direto na resposta, para que o dashboard nunca fique esperando.
+const liga = (de, para, saida = 0) => ({ de, para, saida });
 
-if (process.argv.includes("--check")) {
-  const atual = readFileSync(SAIDA, "utf8");
-  if (atual !== json) {
-    console.error("n8n/gastos-ingestao.n8n.json está desatualizado — rode scripts/montar-workflow.mjs");
-    process.exit(1);
-  }
-  console.log("workflow em dia com n8n/nos/*.js");
-} else {
-  writeFileSync(SAIDA, json);
-  console.log(`${wf.nodes.length} nós → n8n/gastos-ingestao.n8n.json`);
-  console.log(ordem.join(" → "));
+const wfApagar = {
+  name: "Gastos — apagar lançamentos",
+  nodes: [
+    {
+      parameters: {
+        httpMethod: "POST",
+        path: "apagar-lancamentos",
+        responseMode: "responseNode",
+        // O token no cabeçalho é quem protege; a origem, sozinha, não protege
+        // nada — qualquer cliente pode forjá-la.
+        options: { allowedOrigins: "*" },
+      },
+      id: "b1000000-0000-4000-8000-000000000001",
+      name: "Webhook",
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2.1,
+      position: [-320, 300],
+      webhookId: "c0ffee00-0000-4000-8000-000000000001",
+    },
+    code("Conferir pedido", "apagar-pedido.js", -80, 300),
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
+          conditions: [{
+            id: "autorizado",
+            leftValue: "={{ $json.autorizado }}",
+            rightValue: "",
+            operator: { type: "boolean", operation: "true", singleValue: true },
+          }],
+          combinator: "and",
+        },
+        options: {},
+      },
+      id: "b1000000-0000-4000-8000-000000000003",
+      name: "Autorizado?",
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.3,
+      position: [160, 300],
+    },
+    lerAba("Ler lançamentos", "Lancamentos", 400, 200),
+    code("Casar linhas", "apagar-casar.js", 640, 200),
+    {
+      parameters: {
+        conditions: {
+          options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
+          conditions: [{
+            id: "tem-linha",
+            leftValue: "={{ $json.nada }}",
+            rightValue: "",
+            operator: { type: "boolean", operation: "false", singleValue: true },
+          }],
+          combinator: "and",
+        },
+        options: {},
+      },
+      id: "b1000000-0000-4000-8000-000000000006",
+      name: "Tem linha?",
+      type: "n8n-nodes-base.if",
+      typeVersion: 2.3,
+      position: [880, 200],
+    },
+    {
+      parameters: {
+        operation: "delete",
+        documentId: PLANILHA,
+        sheetName: aba("Lancamentos"),
+        toDelete: "rows",
+        startIndex: "={{ $json.row_number }}",
+        numberToDelete: 1,
+        authentication: "serviceAccount",
+      },
+      id: "b1000000-0000-4000-8000-000000000007",
+      name: "Apagar linha",
+      type: "n8n-nodes-base.googleSheets",
+      typeVersion: 4.5,
+      position: [1120, 200],
+      credentials: CRED_SHEETS,
+      // uma execução por item, do maior número de linha para o menor
+      alwaysOutputData: true,
+    },
+    code("Montar resposta", "apagar-resposta.js", 1360, 300),
+    {
+      parameters: {
+        respondWith: "json",
+        responseBody: "={{ JSON.stringify($json) }}",
+        options: { responseCode: "={{ $json.status }}" },
+      },
+      id: "b1000000-0000-4000-8000-000000000009",
+      name: "Responder",
+      type: "n8n-nodes-base.respondToWebhook",
+      typeVersion: 1.5,
+      position: [1600, 300],
+    },
+  ],
+  connections: {},
+  settings: { executionOrder: "v1" },
+  pinData: {},
+  active: false,
+};
+
+for (const { de, para, saida } of [
+  liga("Webhook", "Conferir pedido"),
+  liga("Conferir pedido", "Autorizado?"),
+  liga("Autorizado?", "Ler lançamentos", 0),      // autorizado
+  liga("Autorizado?", "Montar resposta", 1),      // negado, responde e acabou
+  liga("Ler lançamentos", "Casar linhas"),
+  liga("Casar linhas", "Tem linha?"),
+  liga("Tem linha?", "Apagar linha", 0),
+  liga("Tem linha?", "Montar resposta", 1),       // nada casou
+  liga("Apagar linha", "Montar resposta"),
+  liga("Montar resposta", "Responder"),
+]) {
+  const c = (wfApagar.connections[de] ||= { main: [] });
+  while (c.main.length <= saida) c.main.push([]);
+  c.main[saida].push({ node: para, type: "main", index: 0 });
 }
+
+const artefatos = [
+  { caminho: SAIDA, nome: "n8n/gastos-ingestao.n8n.json", wf },
+  { caminho: SAIDA_APAGAR, nome: "n8n/apagar-lancamentos.n8n.json", wf: wfApagar },
+];
+
+let desatualizado = false;
+for (const a of artefatos) {
+  const json = JSON.stringify(a.wf, null, 2) + "\n";
+  if (process.argv.includes("--check")) {
+    if (readFileSync(a.caminho, "utf8") !== json) {
+      console.error(`${a.nome} está desatualizado — rode scripts/montar-workflow.mjs`);
+      desatualizado = true;
+    }
+  } else {
+    writeFileSync(a.caminho, json);
+    console.log(`${a.wf.nodes.length} nós → ${a.nome}`);
+  }
+}
+if (desatualizado) process.exit(1);
+if (process.argv.includes("--check")) console.log("workflows em dia com n8n/nos/*.js");
+else console.log(ordem.join(" → "));

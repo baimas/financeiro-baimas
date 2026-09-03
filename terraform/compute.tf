@@ -21,6 +21,7 @@ locals {
     dominio            = var.dominio
     gemini_api_key     = var.gemini_api_key
     n8n_encryption_key = var.n8n_encryption_key
+    dashboard_token    = var.dashboard_token
     duckdns_token      = var.duckdns_token
     duckdns_dominio    = replace(var.dominio, ".duckdns.org", "")
     timezone           = var.timezone

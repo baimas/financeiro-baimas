@@ -1,0 +1,322 @@
+{
+  "name": "Gastos — apagar lançamentos",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "apagar-lancamentos",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -320,
+        300
+      ],
+      "webhookId": "c0ffee00-0000-4000-8000-000000000001"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Porta de entrada da exclusão pedida pelo dashboard.\n//\n// O repositório é público e a URL deste webhook está no dashboard/index.html,\n// à vista de qualquer um. Quem autoriza é o token: ele existe no ambiente do\n// n8n e no navegador de quem usa, nunca em arquivo versionado.\n\nconst req = $input.first().json;\nconst cabecalhos = req.headers || {};\nconst corpo = req.body || {};\n\nconst enviado = String(cabecalhos['x-dashboard-token'] || '').trim();\nconst esperado = String($env.DASHBOARD_TOKEN || '').trim();\n\n// Servidor sem token configurado não apaga nada. O contrário — aceitar tudo\n// enquanto falta configuração — transformaria um esquecimento em porta aberta.\nconst autorizado = esperado.length >= 16 && enviado === esperado;\n\n// Teto de 50 por pedido: engano na tela não vira estrago em massa.\nconst chaves = (Array.isArray(corpo.chaves) ? corpo.chaves : [])\n  .slice(0, 50)\n  .map((c) => ({\n    update_id: String(c.update_id ?? '').trim(),\n    criado_em: String(c.criado_em ?? '').trim(),\n    valor: String(c.valor ?? '').trim(),\n    descricao: String(c.descricao ?? '').trim(),\n  }))\n  .filter((c) => c.update_id && c.criado_em);\n\nconst motivo = autorizado\n  ? ''\n  : (esperado ? 'token invalido' : 'DASHBOARD_TOKEN nao configurado no n8n');\n\nreturn [{ json: { autorizado, motivo, chaves, pedidas: chaves.length } }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000-80",
+      "name": "Conferir pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -80,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "autorizado",
+              "leftValue": "={{ $json.autorizado }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1000000-0000-4000-8000-000000000003",
+      "name": "Autorizado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1w60kGXBH1vVOGQZSHpWybrtXl9KiSgOabvp2QQS7aRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Lancamentos",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "a1000000-0000-4000-8000-000000000400",
+      "name": "Ler lançamentos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        400,
+        200
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Onde a exclusão fica segura: o dashboard diz QUAIS lançamentos, nunca em que\n// linha eles estão.\n//\n// O CSV que a página leu tem minutos de atraso e o bot pode ter gravado mais\n// linhas nesse intervalo — apagar pela posição que a tela viu apagaria outra\n// coisa. Aqui cada chave é casada contra a planilha lida agora, e valor e\n// descrição ainda são conferidos antes de qualquer exclusão.\n\nconst pedido = $('Conferir pedido').first().json;\nconst linhas = $input.all().map((i) => i.json);\n\nconst norm = (v) => String(v ?? '').trim();\nconst centavos = (v) => {\n  const bruto = String(v ?? '').replace(/[R$\\s]/g, '');\n  // \"1.234,56\" e \"1234.56\" são o mesmo dinheiro\n  const limpo = bruto.includes(',') ? bruto.replace(/\\./g, '').replace(',', '.') : bruto;\n  const n = Number(limpo);\n  return isFinite(n) ? Math.round(n * 100) : NaN;\n};\n\nconst achadas = [];\nconst perdidas = [];\n\nfor (const chave of pedido.chaves || []) {\n  const mesmaOrigem = linhas.filter(\n    (l) => norm(l.update_id) === chave.update_id && norm(l.criado_em) === chave.criado_em,\n  );\n  const casadas = mesmaOrigem.filter(\n    (l) => centavos(l.valor) === centavos(chave.valor) && norm(l.descricao) === chave.descricao,\n  );\n  const linha = casadas.length === 1 ? Number(casadas[0].row_number) : 0;\n\n  if (linha >= 2) {\n    achadas.push({ ...chave, row_number: linha });\n  } else {\n    perdidas.push({\n      ...chave,\n      motivo: casadas.length > 1 ? 'mais de uma linha idêntica' : 'não encontrada na planilha',\n    });\n  }\n}\n\n// De baixo para cima: apagar a linha 5 antes da 9 faria a 9 virar 8.\nachadas.sort((a, b) => b.row_number - a.row_number);\n\n// Um item sempre sai daqui: sem ele o fluxo morreria antes de responder ao\n// dashboard, que ficaria esperando até o timeout.\nif (!achadas.length) return [{ json: { nada: true, perdidas } }];\nreturn achadas.map((a) => ({ json: { ...a, nada: false, perdidas } }));\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000640",
+      "name": "Casar linhas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tem-linha",
+              "leftValue": "={{ $json.nada }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b1000000-0000-4000-8000-000000000006",
+      "name": "Tem linha?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        880,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1w60kGXBH1vVOGQZSHpWybrtXl9KiSgOabvp2QQS7aRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Lancamentos",
+          "mode": "name"
+        },
+        "toDelete": "rows",
+        "startIndex": "={{ $json.row_number }}",
+        "numberToDelete": 1,
+        "authentication": "serviceAccount"
+      },
+      "id": "b1000000-0000-4000-8000-000000000007",
+      "name": "Apagar linha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1120,
+        200
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Uma resposta só para o dashboard, valha o pedido ter sido negado, ter vindo\n// vazio ou ter apagado linhas. Os três caminhos chegam neste nó, então cada\n// leitura de nó anterior é protegida: no ramo negado, \"Casar linhas\" nem rodou.\n\nconst ler = (nome, padrao) => {\n  try { return $(nome).first().json; } catch (e) { return padrao; }\n};\n\nconst pedido = ler('Conferir pedido', { autorizado: false, motivo: 'pedido não chegou', pedidas: 0 });\n\nif (!pedido.autorizado) {\n  return [{ json: { ok: false, status: 401, motivo: pedido.motivo || 'não autorizado', apagados: 0 } }];\n}\n\nlet casadas = [];\ntry {\n  casadas = $('Casar linhas').all().map((i) => i.json).filter((c) => !c.nada);\n} catch (e) { /* ninguém casou: segue com zero */ }\n\nconst perdidas = (ler('Casar linhas', {}).perdidas) || [];\n\nreturn [{ json: {\n  ok: true,\n  status: 200,\n  pedidos: pedido.pedidas || 0,\n  apagados: casadas.length,\n  // o dashboard usa esta lista para tirar as linhas da tela na hora: o CSV\n  // publicado só vai refletir a exclusão alguns minutos depois\n  apagadas: casadas.map((c) => ({ update_id: c.update_id, criado_em: c.criado_em })),\n  nao_encontrados: perdidas,\n} }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000001360",
+      "name": "Montar resposta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1360,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {
+          "responseCode": "={{ $json.status }}"
+        }
+      },
+      "id": "b1000000-0000-4000-8000-000000000009",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1600,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Conferir pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Conferir pedido": {
+      "main": [
+        [
+          {
+            "node": "Autorizado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Autorizado?": {
+      "main": [
+        [
+          {
+            "node": "Ler lançamentos",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler lançamentos": {
+      "main": [
+        [
+          {
+            "node": "Casar linhas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Casar linhas": {
+      "main": [
+        [
+          {
+            "node": "Tem linha?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Tem linha?": {
+      "main": [
+        [
+          {
+            "node": "Apagar linha",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Montar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apagar linha": {
+      "main": [
+        [
+          {
+            "node": "Montar resposta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Montar resposta": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "active": false
+}

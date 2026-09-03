@@ -7,7 +7,8 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
-  RAIZ, CARTOES, FIXOS, fabricarRunner, update, respostaGemini, processar,
+  RAIZ, CARTOES, FIXOS, fabricarRunner, fabricarRunnerApagar, pedidoHttp,
+  update, respostaGemini, processar,
 } from "./lib/pipeline.mjs";
 
 let falhas = 0;
@@ -171,6 +172,85 @@ await teste("vários lançamentos viram uma mensagem só", async () => {
 await teste("confiança baixa pede conferência", async () => {
   const { resumo } = await comResposta([{ ...GASTO, confianca: 0.4 }]);
   if (!resumo.texto_resposta.includes("confira")) throw new Error(resumo.texto_resposta);
+});
+
+console.log("\nApagar lançamentos");
+const SEGREDO = "0123456789abcdef0123456789abcdef";
+const CHAVE = { update_id: "610246548", criado_em: "2026-09-03T21:54:19.889Z",
+                valor: 20, descricao: "Mercado" };
+// como a aba Lancamentos volta do nó do Sheets, com o número da linha junto
+const NA_PLANILHA = [
+  { row_number: 2, update_id: "610246547", criado_em: "2026-09-03T20:00:00.000Z",
+    valor: "35.50", descricao: "Padaria" },
+  { row_number: 3, update_id: "610246548", criado_em: "2026-09-03T21:54:19.889Z",
+    valor: "20", descricao: "Mercado" },
+  { row_number: 4, update_id: "610246549", criado_em: "2026-09-03T22:10:00.000Z",
+    valor: "1.234,56", descricao: "Geladeira" },
+];
+const apagar = (env = { DASHBOARD_TOKEN: SEGREDO }) => fabricarRunnerApagar(env);
+const conferir = (chaves, token, env) =>
+  apagar(env)("Conferir pedido", pedidoHttp(chaves, token))[0];
+const casar = (pedido) =>
+  apagar()("Casar linhas", NA_PLANILHA, { "Conferir pedido": pedido });
+
+await teste("token certo autoriza", () => {
+  igual(conferir([CHAVE], SEGREDO).autorizado, true, "autorizado");
+});
+await teste("token errado não autoriza", () => {
+  igual(conferir([CHAVE], "chute").autorizado, false, "autorizado");
+});
+await teste("sem cabeçalho nenhum não autoriza", () => {
+  igual(conferir([CHAVE], undefined).autorizado, false, "autorizado");
+});
+await teste("servidor sem DASHBOARD_TOKEN recusa até o token certo", () => {
+  igual(conferir([CHAVE], SEGREDO, {}).autorizado, false, "autorizado");
+});
+await teste("pedido é limitado a 50 chaves", () => {
+  const muitas = Array.from({ length: 80 }, (_, i) => ({ ...CHAVE, update_id: String(i) }));
+  igual(conferir(muitas, SEGREDO).chaves.length, 50, "chaves");
+});
+await teste("acha a linha certa pela chave", () => {
+  const r = casar(conferir([CHAVE], SEGREDO));
+  igual(r.length, 1, "itens");
+  igual(r[0].row_number, 3, "linha");
+});
+await teste("valor com separador brasileiro casa com o número", () => {
+  const chave = { update_id: "610246549", criado_em: "2026-09-03T22:10:00.000Z",
+                  valor: 1234.56, descricao: "Geladeira" };
+  igual(casar(conferir([chave], SEGREDO))[0].row_number, 4, "linha");
+});
+await teste("valor diferente não apaga: a linha mudou desde que a tela leu", () => {
+  const r = casar(conferir([{ ...CHAVE, valor: 21 }], SEGREDO));
+  igual(r[0].nada, true, "nada");
+  igual(r[0].perdidas.length, 1, "perdidas");
+});
+await teste("chave que não existe mais não apaga nada", () => {
+  const r = casar(conferir([{ ...CHAVE, update_id: "999" }], SEGREDO));
+  igual(r[0].nada, true, "nada");
+});
+await teste("apaga de baixo para cima, senão os números escorregam", () => {
+  const chaves = [
+    { update_id: "610246547", criado_em: "2026-09-03T20:00:00.000Z", valor: 35.5, descricao: "Padaria" },
+    { update_id: "610246549", criado_em: "2026-09-03T22:10:00.000Z", valor: 1234.56, descricao: "Geladeira" },
+  ];
+  const linhas = casar(conferir(chaves, SEGREDO)).map((i) => i.row_number);
+  igual(JSON.stringify(linhas), JSON.stringify([4, 2]), "ordem");
+});
+await teste("resposta de pedido negado devolve 401 e não vaza motivo interno", () => {
+  const pedido = conferir([CHAVE], "chute");
+  const r = apagar()("Montar resposta", pedido, { "Conferir pedido": pedido })[0];
+  igual(r.status, 401, "status");
+  igual(r.apagados, 0, "apagados");
+});
+await teste("resposta conta o que apagou e o que não achou", () => {
+  const pedido = conferir([CHAVE, { ...CHAVE, update_id: "999" }], SEGREDO);
+  const casadas = casar(pedido);
+  const r = apagar()("Montar resposta", casadas,
+    { "Conferir pedido": pedido, "Casar linhas": casadas })[0];
+  igual(r.status, 200, "status");
+  igual(r.apagados, 1, "apagados");
+  igual(r.nao_encontrados.length, 1, "não encontrados");
+  igual(r.apagadas[0].update_id, "610246548", "chave devolvida");
 });
 
 console.log("\nEncaixe com a planilha");
