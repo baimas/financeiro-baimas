@@ -9,6 +9,7 @@
         "additionalFields": {}
       },
       "id": "a1000000-0000-4000-8000-000000000001",
+      "webhookId": "d51b36ac-6344-49ae-9770-7a082f55530b",
       "name": "Telegram Trigger",
       "type": "n8n-nodes-base.telegramTrigger",
       "typeVersion": 1.1,

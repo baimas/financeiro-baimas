@@ -79,6 +79,11 @@ const wf = {
     {
       parameters: { updates: ["message"], additionalFields: {} },
       id: "a1000000-0000-4000-8000-000000000001",
+      // O webhookId é a URL que o bot tem registrada no Telegram. Sem ele aqui,
+      // cada importação gera outra rota, o setWebhook antigo continua apontando
+      // para a anterior e o grupo fica mudo — sem erro nenhum na tela do n8n,
+      // só "unknown webhook" nos logs. Fixo, o workflow pode ir e voltar.
+      webhookId: "d51b36ac-6344-49ae-9770-7a082f55530b",
       name: "Telegram Trigger",
       type: "n8n-nodes-base.telegramTrigger",
       typeVersion: 1.1,
