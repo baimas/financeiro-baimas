@@ -1,6 +1,6 @@
 // ── AJUSTE ESTES DOIS VALORES ────────────────────────────────
-const CHAT_ID = -1001234567890;                              // id do grupo (negativo)
-const MEMBROS = { 111111111: 'Vini', 222222222: 'Lidia' };   // from.id -> nome
+const CHAT_ID = -5403036702;                                  // id do grupo (negativo)
+const MEMBROS = { 822395388: 'Vini', 1060520015: 'Lidia' };  // from.id -> nome
 // Descubra os dois rodando: scripts/checar-bot.sh <token>
 // ─────────────────────────────────────────────────────────────
 

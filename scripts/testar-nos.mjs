@@ -125,9 +125,9 @@ await teste("sobrevive a JSON ilegível do modelo", async () => {
 });
 
 console.log("\nCiclo de fatura");
-// Nubank Vini fecha 28, vence 5 → vencimento antes do fechamento, cai no mês seguinte
+// Nubank Vini fecha 26, vence 3 → vencimento antes do fechamento, cai no mês seguinte
 await teste("compra antes do fechamento vence no mês seguinte", async () => {
-  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-27", forma: "Nubank Vini" }]);
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-20", forma: "Nubank Vini" }]);
   igual(linhas[0].competencia_fatura, "2026-09", "fatura");
 });
 await teste("compra depois do fechamento pula uma fatura", async () => {
@@ -138,9 +138,15 @@ await teste("vira o ano corretamente", async () => {
   const { linhas } = await comResposta([{ ...GASTO, data: "2026-12-29", forma: "Nubank Vini" }]);
   igual(linhas[0].competencia_fatura, "2027-02", "fatura");
 });
-// Bradesco fecha 15, vence 25 → vencimento depois do fechamento, mesmo mês
-await teste("cartão que vence depois de fechar cobra no mesmo mês", async () => {
-  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-10", forma: "Bradesco" }]);
+// Nenhum cartão real da casa vence depois de fechar; o ramo continua existindo
+// no código, então testamos com um cartão fabricado só para este teste.
+await teste("cartão que vence depois de fechar cobra no mesmo mês", () => {
+  const rodar = fabricarRunner();
+  const triado = rodar("Triagem", update("gastei 50 no cartao teste"))[0];
+  const cartaoTeste = [{ nome: "Cartão Teste", dia_fechamento: "15", dia_vencimento: "25" }];
+  const ctx = rodar("Montar prompt", triado, { Triagem: triado, "Ler cartões": cartaoTeste, "Ler gastos fixos": FIXOS })[0];
+  const resp = respostaGemini([{ ...GASTO, forma: "Cartão Teste", data: "2026-08-10" }]);
+  const linhas = rodar("Validar", resp, { "Montar prompt": ctx });
   igual(linhas[0].competencia_fatura, "2026-08", "fatura");
 });
 await teste("Pix e débito não têm fatura", async () => {
