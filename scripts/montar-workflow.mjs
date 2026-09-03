@@ -51,6 +51,28 @@ const lerAba = (nome, nomeAba, x, y) => ({
   executeOnce: true,
 });
 
+// condição de nó If, no formato verboso que o n8n espera
+const seBooleano = (id, expressao, valor) => ({
+  options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
+  conditions: [{
+    id, leftValue: expressao, rightValue: "",
+    operator: { type: "boolean", operation: valor ? "true" : "false", singleValue: true },
+  }],
+  combinator: "and",
+});
+const seTexto = (id, expressao, valor) => ({
+  options: { caseSensitive: true, leftValue: "", typeValidation: "strict", version: 2 },
+  conditions: [{
+    id, leftValue: expressao, rightValue: valor,
+    operator: { type: "string", operation: "equals" },
+  }],
+  combinator: "and",
+});
+const noSe = (nome, id, condicoes, x, y) => ({
+  parameters: { conditions: condicoes, options: {} },
+  id, name: nome, type: "n8n-nodes-base.if", typeVersion: 2.3, position: [x, y],
+});
+
 const wf = {
   name: "Gastos — ingestão Telegram",
   nodes: [
@@ -131,6 +153,49 @@ const wf = {
       position: [1840, 300],
       credentials: CRED_TELEGRAM,
     },
+    code("Lembrar confirmação", "lembrar-confirmacao.js", 2080, 300),
+
+    // ── ramo do "apagar" pedido no grupo ────────────────────────────────────
+    noSe("É lançamento?", "a1000000-0000-4000-8000-000000000011",
+      seTexto("tipo", "={{ $json.tipo }}", "lancamento"), 160, 420),
+    lerAba("Ler lançamentos", "Lancamentos", 420, 560),
+    code("Escolher para apagar", "apagar-escolher.js", 660, 560),
+    noSe("Achou linha?", "a1000000-0000-4000-8000-000000000014",
+      seBooleano("nada", "={{ $json.nada }}", false), 900, 560),
+    {
+      parameters: {
+        operation: "delete",
+        documentId: PLANILHA,
+        sheetName: aba("Lancamentos"),
+        toDelete: "rows",
+        startIndex: "={{ $json.row_number }}",
+        numberToDelete: 1,
+        authentication: "serviceAccount",
+      },
+      id: "a1000000-0000-4000-8000-000000000015",
+      name: "Apagar linha",
+      type: "n8n-nodes-base.googleSheets",
+      typeVersion: 4.5,
+      position: [1140, 480],
+      credentials: CRED_SHEETS,
+    },
+    code("Avisar exclusão", "apagar-aviso.js", 1380, 560),
+    {
+      parameters: {
+        chatId: "={{ $json.chat_id }}",
+        text: "={{ $json.texto_resposta }}",
+        additionalFields: {
+          reply_to_message_id: "={{ $json.message_id }}",
+          appendAttribution: false,
+        },
+      },
+      id: "a1000000-0000-4000-8000-000000000017",
+      name: "Responder a exclusão",
+      type: "n8n-nodes-base.telegram",
+      typeVersion: 1.2,
+      position: [1620, 560],
+      credentials: CRED_TELEGRAM,
+    },
   ],
   connections: {},
   settings: { executionOrder: "v1" },
@@ -138,17 +203,41 @@ const wf = {
   active: false,
 };
 
-// a cadeia da ingestão é linear: cada nó alimenta o seguinte
-const ordem = wf.nodes.map((n) => n.name);
-for (let i = 0; i < ordem.length - 1; i++) {
-  wf.connections[ordem[i]] = { main: [[{ node: ordem[i + 1], type: "main", index: 0 }]] };
-}
+// ── conexões ────────────────────────────────────────────────────────────────
+// Deixou de ser uma linha reta quando o "apagar" entrou: a Triagem separa quem
+// registra gasto de quem pede exclusão, e os dois ramos terminam em respostas
+// diferentes no grupo.
+const liga = (de, para, saida = 0) => ({ de, para, saida });
+const conectar = (alvo, ligacoes) => {
+  for (const { de, para, saida } of ligacoes) {
+    const c = (alvo.connections[de] ||= { main: [] });
+    while (c.main.length <= saida) c.main.push([]);
+    c.main[saida].push({ node: para, type: "main", index: 0 });
+  }
+};
+
+// o caminho do gasto, que continua sendo uma linha reta depois do desvio
+const doGasto = ["Ler cartões", "Ler gastos fixos", "Montar prompt", "Gemini",
+  "Validar", "Gravar na planilha", "Resumo da resposta", "Confirmar no grupo",
+  "Lembrar confirmação"];
+const ordem = ["Telegram Trigger", "Triagem", "É lançamento?", ...doGasto];
+conectar(wf, [
+  liga("Telegram Trigger", "Triagem"),
+  liga("Triagem", "É lançamento?"),
+  ...doGasto.slice(1).map((n, i) => liga(doGasto[i], n)),
+  liga("É lançamento?", "Ler cartões", 0),        // é gasto: segue o fluxo de sempre
+  liga("É lançamento?", "Ler lançamentos", 1),    // é "apagar"
+  liga("Ler lançamentos", "Escolher para apagar"),
+  liga("Escolher para apagar", "Achou linha?"),
+  liga("Achou linha?", "Apagar linha", 0),
+  liga("Achou linha?", "Avisar exclusão", 1),     // não achou: explica no grupo
+  liga("Apagar linha", "Avisar exclusão"),
+  liga("Avisar exclusão", "Responder a exclusão"),
+]);
 
 // ── workflow 2: apagar lançamentos, pedido pelo dashboard ───────────────────
 // Não é linear: dois desvios (pedido não autorizado, nada a apagar) desembocam
 // direto na resposta, para que o dashboard nunca fique esperando.
-const liga = (de, para, saida = 0) => ({ de, para, saida });
-
 const wfApagar = {
   name: "Gastos — apagar lançamentos",
   nodes: [
@@ -250,7 +339,7 @@ const wfApagar = {
   active: false,
 };
 
-for (const { de, para, saida } of [
+conectar(wfApagar, [
   liga("Webhook", "Conferir pedido"),
   liga("Conferir pedido", "Autorizado?"),
   liga("Autorizado?", "Ler lançamentos", 0),      // autorizado
@@ -261,11 +350,7 @@ for (const { de, para, saida } of [
   liga("Tem linha?", "Montar resposta", 1),       // nada casou
   liga("Apagar linha", "Montar resposta"),
   liga("Montar resposta", "Responder"),
-]) {
-  const c = (wfApagar.connections[de] ||= { main: [] });
-  while (c.main.length <= saida) c.main.push([]);
-  c.main[saida].push({ node: para, type: "main", index: 0 });
-}
+]);
 
 const artefatos = [
   { caminho: SAIDA, nome: "n8n/gastos-ingestao.n8n.json", wf },

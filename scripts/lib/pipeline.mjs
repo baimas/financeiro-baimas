@@ -58,6 +58,9 @@ export const update = (texto, over = {}) => ({
     message_id: over.message_id ?? 1,
     chat: { id: over.chat_id ?? CHAT_ID, type: "supergroup", title: "Casa" },
     from: { id: over.from_id ?? FROM_ID, first_name: "Vini" },
+    // o Telegram entrega a mensagem respondida, mas sem o reply DELA — por isso
+    // o fluxo precisa guardar de que lançamento cada confirmação falava
+    ...(over.reply_to ? { reply_to_message: { message_id: over.reply_to } } : {}),
     text: texto,
   },
 });

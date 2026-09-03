@@ -25,7 +25,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// ── AJUSTE ESTES DOIS VALORES ────────────────────────────────\nconst CHAT_ID = -5403036702;                                  // id do grupo (negativo)\nconst MEMBROS = { 822395388: 'Vini', 1060520015: 'Lidia' };  // from.id -> nome\n// Descubra os dois rodando: scripts/checar-bot.sh <token>\n// ─────────────────────────────────────────────────────────────\n\nconst upd = $input.first().json;\nconst msg = upd.message || upd.edited_message;\nif (!msg) return [];\n\n// 1. autorizacao: precisa ser o grupo certo e um membro conhecido\nif (String(msg.chat.id) !== String(CHAT_ID)) return [];\nconst pessoa = MEMBROS[msg.from.id];\nif (!pessoa) return [];\n\n// 2. idempotencia: guarda os ultimos update_id na memoria do workflow\nconst st = $getWorkflowStaticData('global');\nst.vistos = st.vistos || [];\nif (st.vistos.includes(upd.update_id)) return [];\nst.vistos.push(upd.update_id);\nif (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);\n\n// 3. triagem: sem numero que pareca dinheiro, nao gasta LLM nem le a planilha\nconst texto = (msg.text || msg.caption || '').trim();\nif (!texto) return [];\nif (!/\\d/.test(texto)) return [];\n\n// 4. data de hoje no fuso de Sao Paulo, formato YYYY-MM-DD\nconst hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });\n\nreturn [{ json: {\n  update_id: upd.update_id,\n  message_id: msg.message_id,\n  chat_id: msg.chat.id,\n  pessoa,\n  texto,\n  hoje,\n}}];\n"
+        "jsCode": "// ── AJUSTE ESTES DOIS VALORES ────────────────────────────────\nconst CHAT_ID = -5403036702;                                  // id do grupo (negativo)\nconst MEMBROS = { 822395388: 'Vini', 1060520015: 'Lidia' };  // from.id -> nome\n// Descubra os dois rodando: scripts/checar-bot.sh <token>\n// ─────────────────────────────────────────────────────────────\n\nconst upd = $input.first().json;\nconst msg = upd.message || upd.edited_message;\nif (!msg) return [];\n\n// 1. autorizacao: precisa ser o grupo certo e um membro conhecido\nif (String(msg.chat.id) !== String(CHAT_ID)) return [];\nconst pessoa = MEMBROS[msg.from.id];\nif (!pessoa) return [];\n\n// 2. idempotencia: guarda os ultimos update_id na memoria do workflow\nconst st = $getWorkflowStaticData('global');\nst.vistos = st.vistos || [];\nif (st.vistos.includes(upd.update_id)) return [];\nst.vistos.push(upd.update_id);\nif (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);\n\nconst texto = (msg.text || msg.caption || '').trim();\nif (!texto) return [];\n\n// 3. pedido de exclusao: sai por outro ramo, sem Gemini e sem prompt.\n// Vem antes do teste do numero porque \"apagar\" nao tem digito nenhum.\nconst APAGAR = /^\\s*(apagar?|apaga|deletar?|excluir?|remover?)\\b/i;\nconst comum = {\n  update_id: upd.update_id,\n  message_id: msg.message_id,\n  chat_id: msg.chat.id,\n  pessoa,\n  texto,\n};\nif (APAGAR.test(texto)) {\n  return [{ json: {\n    ...comum,\n    tipo: 'apagar',\n    // reply na propria mensagem ou na confirmacao do bot: os dois ids levam ao\n    // mesmo lancamento, porque o fluxo guarda ambos ao confirmar\n    responde_a: (msg.reply_to_message && msg.reply_to_message.message_id) || 0,\n  }}];\n}\n\n// 4. triagem: sem numero que pareca dinheiro, nao gasta LLM nem le a planilha\nif (!/\\d/.test(texto)) return [];\n\n// 5. data de hoje no fuso de Sao Paulo, formato YYYY-MM-DD\nconst hoje = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Sao_Paulo' });\n\nreturn [{ json: { ...comum, tipo: 'lancamento', hoje }}];\n"
       },
       "id": "a1000000-0000-4000-8000-000000000-80",
       "name": "Triagem",
@@ -232,6 +232,200 @@
           "name": "Telegram — bot de gastos"
         }
       }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Guarda a ponte entre a conversa e a planilha: qual mensagem gerou quais\n// linhas.\n//\n// Sem isso, responder \"apagar\" a uma confirmação não teria como saber o que\n// apagar: o Telegram entrega a mensagem respondida sem o reply dela, então não\n// há como seguir a cadeia de volta até o lançamento. Ficam guardados os dois\n// ids — o da mensagem de quem gastou e o da confirmação do bot — porque na\n// prática as pessoas respondem tanto a uma quanto à outra.\n\nconst enviada = $input.first().json;\nconst src = $('Montar prompt').first().json;\nconst linhas = $('Validar').all().map((i) => i.json);\n\nconst st = $getWorkflowStaticData('global');\nst.confirmacoes = st.confirmacoes || {};\n\nconst chaves = linhas.map((l) => ({\n  update_id: String(l.update_id),\n  criado_em: l.criado_em,\n  valor: l.valor,\n  descricao: l.descricao,\n}));\n\nconst idDaConfirmacao = (enviada && enviada.result && enviada.result.message_id) || enviada.message_id;\nfor (const id of [src.message_id, idDaConfirmacao]) {\n  if (id) st.confirmacoes[String(id)] = chaves;\n}\n\n// O mapa não pode crescer para sempre. 400 mensagens são meses de uso da casa,\n// e o que cai fora ainda pode ser apagado pelo dashboard.\nconst ids = Object.keys(st.confirmacoes);\nif (ids.length > 400) {\n  for (const id of ids.slice(0, ids.length - 400)) delete st.confirmacoes[id];\n}\n\nreturn [];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000002080",
+      "name": "Lembrar confirmação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2080,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "tipo",
+              "leftValue": "={{ $json.tipo }}",
+              "rightValue": "lancamento",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000011",
+      "name": "É lançamento?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        160,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1w60kGXBH1vVOGQZSHpWybrtXl9KiSgOabvp2QQS7aRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Lancamentos",
+          "mode": "name"
+        },
+        "options": {},
+        "authentication": "serviceAccount"
+      },
+      "id": "a1000000-0000-4000-8000-000000000420",
+      "name": "Ler lançamentos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        420,
+        560
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Decide o que \"apagar\" quer dizer, e acha as linhas na planilha lida agora.\n//\n// Dois jeitos de pedir, e a diferença importa: respondendo a uma mensagem, o\n// alvo é aquele lançamento, de qualquer dia; sem responder nada, o alvo é o\n// último que a própria pessoa registrou. Ninguém apaga o lançamento do outro\n// sem apontar para ele.\n\nconst src = $('Triagem').first().json;\nconst linhas = $input.all().map((i) => i.json);\nconst mapa = $getWorkflowStaticData('global').confirmacoes || {};\n\nconst norm = (v) => String(v ?? '').trim().toLowerCase();\nconst centavos = (v) => {\n  const bruto = String(v ?? '').replace(/[R$\\s]/g, '');\n  const limpo = bruto.includes(',') ? bruto.replace(/\\./g, '').replace(',', '.') : bruto;\n  const n = Number(limpo);\n  return isFinite(n) ? Math.round(n * 100) : NaN;\n};\nconst chaveDe = (l) => ({\n  update_id: String(l.update_id), criado_em: String(l.criado_em),\n  valor: l.valor, descricao: l.descricao,\n});\n\nlet chaves = [];\nlet alvo = '';\n\nif (src.responde_a) {\n  chaves = mapa[String(src.responde_a)] || [];\n  alvo = 'o lançamento dessa mensagem';\n  if (!chaves.length) {\n    return [{ json: { nada: true, ...src,\n      recado: 'não sei a que lançamento essa mensagem se refere. '\n            + 'Responda à confirmação de um gasto recente, ou apague pelo dashboard.' } }];\n  }\n} else {\n  const suas = linhas.filter((l) => norm(l.pessoa) === norm(src.pessoa));\n  if (!suas.length) {\n    return [{ json: { nada: true, ...src, recado: 'não achei nenhum lançamento seu para apagar.' } }];\n  }\n  // a última mensagem sua, com todos os gastos que ela gerou\n  const ultima = suas.reduce((a, b) => (String(a.criado_em) > String(b.criado_em) ? a : b));\n  chaves = suas.filter((l) => String(l.update_id) === String(ultima.update_id)).map(chaveDe);\n  alvo = 'seu último lançamento';\n}\n\n// Mesmo com a chave em mãos, confere valor e descrição: a planilha é editada à\n// mão também, e apagar a linha errada é pior que não apagar nada.\nconst achadas = [];\nfor (const chave of chaves) {\n  const casadas = linhas.filter(\n    (l) => String(l.update_id) === String(chave.update_id)\n        && String(l.criado_em) === String(chave.criado_em)\n        && centavos(l.valor) === centavos(chave.valor)\n        && norm(l.descricao) === norm(chave.descricao),\n  );\n  if (casadas.length === 1 && Number(casadas[0].row_number) >= 2) {\n    achadas.push({ ...chave, row_number: Number(casadas[0].row_number), linha: casadas[0] });\n  }\n}\n\nif (!achadas.length) {\n  return [{ json: { nada: true, ...src,\n    recado: 'esse lançamento não está mais na planilha — alguém já apagou.' } }];\n}\n\n// de baixo para cima, senão o primeiro delete faz os números seguintes escorregarem\nachadas.sort((a, b) => b.row_number - a.row_number);\nreturn achadas.map((a) => ({ json: { ...a, nada: false, alvo, ...src } }));\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000000660",
+      "name": "Escolher para apagar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        660,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "nada",
+              "leftValue": "={{ $json.nada }}",
+              "rightValue": "",
+              "operator": {
+                "type": "boolean",
+                "operation": "false",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a1000000-0000-4000-8000-000000000014",
+      "name": "Achou linha?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        900,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "documentId": {
+          "__rl": true,
+          "value": "1w60kGXBH1vVOGQZSHpWybrtXl9KiSgOabvp2QQS7aRI",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "Lancamentos",
+          "mode": "name"
+        },
+        "toDelete": "rows",
+        "startIndex": "={{ $json.row_number }}",
+        "numberToDelete": 1,
+        "authentication": "serviceAccount"
+      },
+      "id": "a1000000-0000-4000-8000-000000000015",
+      "name": "Apagar linha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1140,
+        480
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "SUBSTITUA",
+          "name": "Google Service Account — gastos"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// A resposta no grupo. Diz o que saiu da planilha, com valor e categoria: quem\n// pediu precisa reconhecer o que sumiu, senão fica a dúvida de ter apagado\n// outra coisa.\n\nconst itens = $input.all().map((i) => i.json);\nconst src = $('Triagem').first().json;\nconst brl = (v) => 'R$ ' + Number(v).toFixed(2).replace('.', ',');\n\nconst primeiro = itens[0] || {};\nif (!itens.length || primeiro.nada) {\n  return [{ json: {\n    chat_id: src.chat_id,\n    message_id: src.message_id,\n    texto_resposta: primeiro.recado || 'não achei o que apagar.',\n  } }];\n}\n\nconst apagados = itens.filter((i) => !i.nada);\nconst descrever = (i) => {\n  const l = i.linha || {};\n  return `− ${brl(l.valor)} · ${l.categoria || 'sem categoria'}`\n       + (l.forma && l.forma !== 'Não informado' ? ` · ${l.forma}` : '');\n};\n\nconst texto = apagados.length === 1\n  ? `apaguei ${primeiro.alvo}:\\n${descrever(apagados[0])}`\n  : `apaguei ${apagados.length} lançamentos de ${primeiro.alvo}:\\n`\n    + apagados.map(descrever).join('\\n');\n\nreturn [{ json: {\n  chat_id: src.chat_id,\n  message_id: src.message_id,\n  texto_resposta: texto,\n} }];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000001380",
+      "name": "Avisar exclusão",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1380,
+        560
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto_resposta }}",
+        "additionalFields": {
+          "reply_to_message_id": "={{ $json.message_id }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000017",
+      "name": "Responder a exclusão",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1620,
+        560
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUBSTITUA",
+          "name": "Telegram — bot de gastos"
+        }
+      }
     }
   ],
   "connections": {
@@ -250,7 +444,7 @@
       "main": [
         [
           {
-            "node": "Ler cartões",
+            "node": "É lançamento?",
             "type": "main",
             "index": 0
           }
@@ -328,6 +522,97 @@
         [
           {
             "node": "Confirmar no grupo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Confirmar no grupo": {
+      "main": [
+        [
+          {
+            "node": "Lembrar confirmação",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "É lançamento?": {
+      "main": [
+        [
+          {
+            "node": "Ler cartões",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ler lançamentos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler lançamentos": {
+      "main": [
+        [
+          {
+            "node": "Escolher para apagar",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Escolher para apagar": {
+      "main": [
+        [
+          {
+            "node": "Achou linha?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Achou linha?": {
+      "main": [
+        [
+          {
+            "node": "Apagar linha",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Avisar exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Apagar linha": {
+      "main": [
+        [
+          {
+            "node": "Avisar exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Avisar exclusão": {
+      "main": [
+        [
+          {
+            "node": "Responder a exclusão",
             "type": "main",
             "index": 0
           }

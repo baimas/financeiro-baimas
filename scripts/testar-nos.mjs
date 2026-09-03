@@ -174,6 +174,95 @@ await teste("confiança baixa pede conferência", async () => {
   if (!resumo.texto_resposta.includes("confira")) throw new Error(resumo.texto_resposta);
 });
 
+console.log("\nApagar pelo grupo");
+// como a aba Lancamentos volta do nó do Sheets, com o número da linha junto
+const NO_GRUPO = [
+  { row_number: 2, update_id: "700", criado_em: "2026-09-03T18:00:00.000Z", pessoa: "Vini",
+    valor: "20", descricao: "Mercado", categoria: "Mercado", forma: "Nubank Vini" },
+  { row_number: 3, update_id: "701", criado_em: "2026-09-03T19:00:00.000Z", pessoa: "Lidia",
+    valor: "30", descricao: "Mercado", categoria: "Mercado", forma: "Nubank Lidia" },
+  { row_number: 4, update_id: "702", criado_em: "2026-09-03T20:00:00.000Z", pessoa: "Vini",
+    valor: "12", descricao: "Padaria", categoria: "Lanches", forma: "Pix" },
+  { row_number: 5, update_id: "702", criado_em: "2026-09-03T20:00:00.100Z", pessoa: "Vini",
+    valor: "30", descricao: "Farmacia", categoria: "Farmácia", forma: "Pix" },
+];
+const triar = (texto, over) => fabricarRunner()("Triagem", update(texto, over))[0];
+
+await teste("\"apagar\" é reconhecido como comando, mesmo sem número", () => {
+  igual(triar("Apagar linha").tipo, "apagar", "tipo");
+});
+await teste("gasto continua sendo gasto", () => {
+  igual(triar("85 no mercado").tipo, "lancamento", "tipo");
+});
+await teste("conversa sem número e sem comando continua sendo ignorada", () => {
+  igual(fabricarRunner()("Triagem", update("te amo")).length, 0, "itens");
+});
+await teste("reply guarda o id da mensagem respondida", () => {
+  const r = fabricarRunner()("Triagem", update("apagar", { reply_to: 555 }));
+  igual(r[0].responde_a, 555, "responde_a");
+});
+await teste("sem reply, apaga o último da própria pessoa — e só dela", () => {
+  const src = triar("apagar");
+  const r = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  igual(r.length, 2, "linhas");                       // a última mensagem teve dois gastos
+  igual(JSON.stringify(r.map((i) => i.row_number)), JSON.stringify([5, 4]), "ordem");
+});
+await teste("a Lidia apaga o dela, não o do Vini", () => {
+  const src = { ...triar("apagar"), pessoa: "Lidia" };
+  const r = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  igual(r.length, 1, "linhas");
+  igual(r[0].row_number, 3, "linha");
+});
+await teste("responder a uma confirmação apaga aquele lançamento", () => {
+  const rodar = fabricarRunner();
+  // o fluxo do gasto guarda a ponte entre a conversa e a planilha
+  rodar("Lembrar confirmação", { result: { message_id: 999 } }, {
+    "Montar prompt": { message_id: 900 },
+    Validar: [{ update_id: "700", criado_em: "2026-09-03T18:00:00.000Z",
+                valor: 20, descricao: "Mercado" }],
+  });
+  const src = { ...triar("apagar"), responde_a: 999 };
+  const r = rodar("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  igual(r.length, 1, "linhas");
+  igual(r[0].row_number, 2, "linha");
+});
+await teste("responder à própria mensagem também funciona", () => {
+  const rodar = fabricarRunner();
+  rodar("Lembrar confirmação", { result: { message_id: 999 } }, {
+    "Montar prompt": { message_id: 900 },
+    Validar: [{ update_id: "700", criado_em: "2026-09-03T18:00:00.000Z",
+                valor: 20, descricao: "Mercado" }],
+  });
+  const src = { ...triar("apagar"), responde_a: 900 };
+  igual(rodar("Escolher para apagar", NO_GRUPO, { Triagem: src })[0].row_number, 2, "linha");
+});
+await teste("responder a mensagem desconhecida explica em vez de chutar", () => {
+  const src = { ...triar("apagar"), responde_a: 12345 };
+  const r = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  igual(r[0].nada, true, "nada");
+  if (!r[0].recado.includes("não sei")) throw new Error(r[0].recado);
+});
+await teste("linha já apagada por fora não vira erro", () => {
+  const rodar = fabricarRunner();
+  rodar("Lembrar confirmação", { result: { message_id: 999 } }, {
+    "Montar prompt": { message_id: 900 },
+    Validar: [{ update_id: "888", criado_em: "2026-01-01T00:00:00.000Z",
+                valor: 5, descricao: "Sumida" }],
+  });
+  const src = { ...triar("apagar"), responde_a: 999 };
+  const r = rodar("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  igual(r[0].nada, true, "nada");
+  if (!r[0].recado.includes("não está mais")) throw new Error(r[0].recado);
+});
+await teste("o aviso no grupo diz o que sumiu", () => {
+  const src = triar("apagar");
+  const escolhidas = fabricarRunner()("Escolher para apagar", NO_GRUPO, { Triagem: src });
+  const aviso = fabricarRunner()("Avisar exclusão", escolhidas, { Triagem: src })[0];
+  if (!aviso.texto_resposta.includes("R$ 30,00")) throw new Error(aviso.texto_resposta);
+  if (!aviso.texto_resposta.includes("Farmácia")) throw new Error(aviso.texto_resposta);
+  igual(aviso.chat_id, src.chat_id, "chat");
+});
+
 console.log("\nApagar lançamentos");
 const SEGREDO = "0123456789abcdef0123456789abcdef";
 const CHAVE = { update_id: "610246548", criado_em: "2026-09-03T21:54:19.889Z",
