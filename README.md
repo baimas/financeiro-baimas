@@ -124,7 +124,23 @@ VM; as outras três só depois que tudo já está no ar.
 ## Nunca perca
 
 `N8N_ENCRYPTION_KEY` — é ela que cifra as credenciais do Telegram e do Google
-dentro do n8n. Se mudar, você refaz todas.
+dentro do n8n. Se mudar, você refaz todas. Ela vive em `terraform.tfvars`, fora
+do git, o que resolve o vazamento e não resolve o sumiço: o arquivo some junto
+com o computador.
+
+```bash
+scripts/guardar-segredos.sh          # gera um .tar.gz.enc no Desktop
+```
+
+O script junta `terraform.tfvars`, o `tfstate`, a chave da API da OCI e a chave
+SSH da VM (a certa: ele acha por comparação com a pública registrada no tfvars),
+cifra tudo com uma senha que você digita na hora, e **confere que o pacote abre**
+antes de dizer que deu certo. A senha não passa por argumento de comando nem por
+variável de ambiente, e não fica guardada em lugar nenhum — perdida a senha, o
+pacote vira ruído. Leve o arquivo para fora do Mac.
+
+Os dados em si não estão nesse pacote: lançamentos, cartões e gastos fixos vivem
+na planilha do Google, que tem o próprio histórico de versões.
 
 ## Mexendo no workflow
 
