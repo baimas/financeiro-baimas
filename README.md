@@ -24,7 +24,7 @@ dashboard/       a página que lê a planilha publicada em CSV
 planilha/        as cinco abas, com modelo e instruções
 stack-manual/    docker-compose e Caddyfile, para subir sem Terraform
 local/           n8n de ensaio no seu computador, sem HTTPS e sem VM
-scripts/         checar o bot, testar o parser e abrir o dashboard sem planilha
+scripts/         checar o bot, testar parser e dashboard, guardar os segredos
 testes/          43 mensagens reais com o resultado esperado
 ```
 
@@ -148,7 +148,8 @@ Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
 node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
-node scripts/testar-nos.mjs           # 56 testes offline, ~1s
+node scripts/testar-nos.mjs           # 59 testes offline dos code nodes, ~1s
+node scripts/testar-dashboard.mjs     # 7 testes do dashboard, sem navegador
 scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
 

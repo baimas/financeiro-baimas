@@ -243,8 +243,14 @@ function secaoFaturas(comp){
         : '<li class="vazio">nada nesta fatura</li>'}</ul></div>`;
   }).join('');
   const soma = D.lancamentos.filter(l=>l.competencia_fatura===comp).reduce((a,l)=>a+l.valor,0);
+  // Compra feita depois do fechamento cai na fatura seguinte: dizer só o que
+  // vence neste mês esconde justamente o gasto recém-lançado.
+  const adiante = D.lancamentos.filter(l=>l.competencia_fatura>comp);
+  const somaAdiante = adiante.reduce((a,l)=>a+l.valor,0);
+  const proximas = [...new Set(adiante.map(l=>l.competencia_fatura))].sort().map(rotuloMes);
   return cartao('Cartões de crédito',
-    `o que vence em ${rotuloMes(comp)} — total ${brl2(soma)}`,
+    `o que vence em ${rotuloMes(comp)} — total ${brl2(soma)}`
+    + (somaAdiante ? ` · ${brl2(somaAdiante)} já lançado para ${proximas.join(', ')}` : ''),
     `<div class="faturas">${blocos}</div>`);
 }
 
@@ -387,6 +393,7 @@ const marcadas = new Set();    // índices de tabelaAtual
 
 function secaoTabela(itens){
   const ord=[...itens].sort((a,b)=> a.data<b.data?1:a.data>b.data?-1:0);
+  const itensDoMes = new Set(itens);
   tabelaAtual = ord;
   marcadas.clear();
   const comSelecao = APAGAR && ord.some(podeApagar);
@@ -406,7 +413,17 @@ function secaoTabela(itens){
       <span id="selconta">nenhum selecionado</span>
       <button type="button" id="apagar" class="perigo" disabled>Apagar selecionados</button>
       <span id="selrecado"></span></div>` : '';
-  return cartao('Lançamentos do mês', `${ord.length} lançamento(s), do mais recente para o mais antigo`,
+  // Um gasto de 27/08 lançado hoje entra na competência de agosto e some da
+  // tela de setembro. Sem esta linha, a conta com o que o bot confirmou no
+  // grupo não fecha e parece que a planilha perdeu lançamento.
+  const fora = D.lancamentos.length - ord.length;
+  const outras = [...new Set(D.lancamentos.filter(t=>!itensDoMes.has(t)).map(t=>t.competencia))]
+    .sort().map(rotuloMes);
+  const sobra = fora > 0
+    ? ` · ${fora} em ${outras.length===1?'':'outras competências: '}${outras.join(', ')}`
+    : '';
+  return cartao('Lançamentos do mês',
+    `${ord.length} lançamento(s), do mais recente para o mais antigo${sobra}`,
     barra + `<div class="tablebox"><table class="wide">
       <thead><tr>${comSelecao?'<th class="sel"></th>':''}<th>Data</th><th>Categoria</th><th>Descrição</th><th>Como</th><th>Quem</th><th class="n">Valor</th></tr></thead>
       <tbody>${corpo}</tbody></table></div>`);
@@ -497,7 +514,7 @@ function render(){
     const fim=new Date(hoje.getFullYear(),hoje.getMonth()+1,0).getDate();
     const restam=Math.max(1,fim-hoje.getDate()+1);
     quarto=`<div class="kpi"><div class="lab">Disponível por dia</div>
-      <div class="val">${saldo>0?brl(saldo/restam):brl(0)}</div>
+      <div class="val">${saldo>0?brl2(saldo/restam):brl2(0)}</div>
       <div class="foot">${restam} dia(s) até o fim do mês</div></div>`;
   } else {
     quarto=`<div class="kpi"><div class="lab">Lançamentos</div>
@@ -505,14 +522,14 @@ function render(){
   }
 
   document.getElementById('kpis').innerHTML=`
-    <div class="kpi"><div class="lab">Entradas</div><div class="val in">${brl(ent)}</div>
+    <div class="kpi"><div class="lab">Entradas</div><div class="val in">${brl2(ent)}</div>
       <div class="foot">${itens.filter(t=>t.tipo==='entrada').length} lançamento(s)</div></div>
-    <div class="kpi"><div class="lab">Saídas</div><div class="val out">${brl(sai)}</div>
+    <div class="kpi"><div class="lab">Saídas</div><div class="val out">${brl2(sai)}</div>
       <div class="foot">${itens.filter(t=>t.tipo==='saida').length} lançamento(s)</div></div>
-    <div class="kpi"><div class="lab">Investimentos</div><div class="val inv">${brl(inv)}</div>
+    <div class="kpi"><div class="lab">Investimentos</div><div class="val inv">${brl2(inv)}</div>
       <div class="foot">${itens.filter(t=>t.tipo==='investimento').length} aporte(s)</div></div>
     <div class="kpi"><div class="lab">Saldo</div>
-      <div class="val ${saldo<0?'out':'in'}">${brl(saldo)}</div>
+      <div class="val ${saldo<0?'out':'in'}">${brl2(saldo)}</div>
       <div class="foot">${ent>0?'poupança de '+((saldo/ent)*100).toFixed(0)+'%':'sem entrada registrada'}</div></div>
     ${quarto}`;
 
