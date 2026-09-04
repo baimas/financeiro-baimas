@@ -47,7 +47,7 @@ apontado.
 **1. Ensaio, sem conta nenhuma** — já feito e versionado:
 
 ```bash
-node scripts/testar-nos.mjs        # 56 testes offline dos code nodes, ~1s
+node scripts/testar-nos.mjs        # 65 testes offline dos code nodes, ~1s
 cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
@@ -93,6 +93,27 @@ antes de existir planilha, com lançamentos de exemplo:
 ```bash
 scripts/dashboard-local.sh         # http://localhost:8899
 ```
+
+## Competência e fatura
+
+Cada lançamento guarda **duas** datas de referência, porque são duas perguntas:
+
+| | responde |
+|---|---|
+| `competencia` | em que mês o gasto **conta** |
+| `competencia_fatura` | em que mês ele é **pago** |
+
+No cartão, "conta" segue o ciclo da fatura, não o dia da compra: num cartão que
+fecha dia 26, a compra de 27/08 e a de 10/09 são a mesma fatura — a que fecha em
+26/09 — e as duas ficam em `2026-09`. É assim que a fatura em formação pode ser
+vista inteira antes de chegar. Essa compra de 27/08 só é paga em 03/10, então
+sua `competencia_fatura` é `2026-10`.
+
+Fora do cartão — Pix, dinheiro, débito — o dinheiro sai na hora e não há ciclo:
+um Pix em 27/08 conta em `2026-08`.
+
+Os dias de fechamento e vencimento saem da aba `Cartoes`: cartão novo é uma
+linha na planilha, nunca uma mudança no workflow.
 
 ## As armadilhas
 
@@ -148,7 +169,7 @@ Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
 node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
-node scripts/testar-nos.mjs           # 59 testes offline dos code nodes, ~1s
+node scripts/testar-nos.mjs           # 65 testes offline dos code nodes, ~1s
 node scripts/testar-dashboard.mjs     # 7 testes do dashboard, sem navegador
 scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
@@ -230,7 +251,7 @@ timeout.
 | `85 no mercado` | uma saída, categoria Mercado |
 | `padaria 12 e farmacia 30` | **dois** lançamentos, não um de 42 |
 | `mercado 85 e uber 23 no pix` | dois lançamentos, ambos no Pix |
-| `gasolina 200 no nubank` | saída no cartão, na fatura certa |
+| `gasolina 200 no nubank` | saída no cartão, no ciclo e na fatura certos |
 | `paguei a internet 150 no debito` | quita o fixo `Internet`, categoria vinda da planilha |
 | `apliquei 400 na reserva` | investimento, que não conta como gasto |
 | `caiu o salário 7000` | entrada |
