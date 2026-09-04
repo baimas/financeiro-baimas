@@ -47,7 +47,7 @@ apontado.
 **1. Ensaio, sem conta nenhuma** — já feito e versionado:
 
 ```bash
-node scripts/testar-nos.mjs        # 65 testes offline dos code nodes, ~1s
+scripts/verificar.sh               # 78 testes offline, ~2s, sem rede nenhuma
 cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
@@ -174,8 +174,7 @@ Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 
 ```bash
 node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
-node scripts/testar-nos.mjs           # 65 testes offline dos code nodes, ~1s
-node scripts/testar-dashboard.mjs     # 7 testes do dashboard, sem navegador
+scripts/verificar.sh                  # sintaxe + JSON em dia + 78 testes offline
 scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
 ```
 

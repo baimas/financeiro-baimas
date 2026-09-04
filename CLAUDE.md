@@ -34,21 +34,46 @@ sendo formada. Quanto vence, e em que dia, aparece ao lado.
 fora da lista vira `Outros`, forma não reconhecida vira `Não informado`, valor
 não-positivo é descartado. Nunca mover decisão de dinheiro para o prompt.
 
+## Onde o projeto está — 04/09/2026
+
+Funcionando de ponta a ponta e em uso pelos dois. O grupo registra gasto, o bot
+confirma citando a mensagem, a linha cai na planilha, o dashboard mostra. Dá
+para apagar lançamento pelo grupo (`apagar`, ou responder a uma mensagem com
+`apagar`) e pelas caixinhas do dashboard.
+
+A planilha tem 23 lançamentos reais somando R$ 1.644,34, todos no ciclo de
+set/26. Foram lançados de uma vez, numa mensagem só com 23 linhas no formato
+`AAAA-MM-DD Estabelecimento 12,34 Nubank Vini` — o parser aguenta isso, e é o
+jeito mais rápido de trazer uma fatura inteira para dentro.
+
+Aberto, em ordem de importância:
+
+1. **Usar por duas semanas sem mexer em nada.** É o critério de parada do MVP:
+   se os dois não lançarem por duas semanas, o problema não é de funcionalidade
+   e nenhuma feature nova resolve.
+2. **O caminho da Lidia** foi exercitado uma vez (lançamento e exclusão pelo
+   grupo). Vale repetir antes de confiar.
+3. **Voltar para o A1.Flex** quando houver capacidade em `sa-saopaulo-1`. Hoje é
+   `E2.1.Micro` com 1 GB e swap em uso.
+4. **`WEBHOOK_URL` → `N8N_WEBHOOK_URL`** no cloud-init: a variável está
+   depreciada e um dia deixa de funcionar.
+
 ## Como o código é organizado
 
 Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON — JavaScript em string
 JSON não sobrevive a revisão. O JSON é artefato gerado:
 
 ```bash
+scripts/verificar.sh                      # tudo que roda sem rede: comece por aqui
 node scripts/montar-workflow.mjs          # regera os dois JSON de n8n/
-node scripts/montar-workflow.mjs --check  # falha se estiverem desatualizados
-node scripts/testar-nos.mjs               # 65 testes offline, ~1s, sem rede
-node scripts/testar-dashboard.mjs         # 7 testes do dashboard, sem navegador
-scripts/testar-parser.mjs                 # 43 mensagens contra o Gemini de verdade
+scripts/testar-parser.mjs                 # 43 mensagens contra o Gemini (precisa de chave)
+scripts/dashboard-local.sh                # dashboard com dados de exemplo, sem planilha
 ```
 
-Editou um code node? Regere o JSON e rode os dois primeiros. Mexeu em prompt,
-categorias ou regra de fatura? Rode também o terceiro.
+`verificar.sh` confere a sintaxe dos code nodes, se o JSON está em dia com eles,
+os 65 testes offline e os 13 do dashboard. Editou qualquer coisa? Regere o JSON
+e rode `verificar.sh`. Mexeu em prompt, categorias ou regra de fatura? Rode
+também o `testar-parser.mjs`, que fala com o modelo de verdade.
 
 **Teste de code node precisa receber o que o nó anterior realmente entrega.**
 Um bug chegou ao grupo (`apaguei undefined: − R$ NaN`) porque o teste alimentava
