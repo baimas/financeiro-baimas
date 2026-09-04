@@ -25,6 +25,11 @@ A conta vive em `competenciaCiclo()` e `competenciaFatura()`, em
 [n8n/nos/validar.js](n8n/nos/validar.js). Os dias de fechamento e vencimento vêm
 da aba `Cartoes` — adicionar cartão é editar a planilha, nunca o workflow.
 
+O dashboard segue a mesma ideia: o card de cartões e a linha "Cartões" do
+orçamento somam o **ciclo** (a fatura em formação), não o que vence no mês —
+somar pelo vencimento deixava tudo zerado justamente no mês em que a fatura está
+sendo formada. Quanto vence, e em que dia, aparece ao lado.
+
 **Dinheiro é determinístico.** O modelo propõe, o nó `Validar` decide: categoria
 fora da lista vira `Outros`, forma não reconhecida vira `Não informado`, valor
 não-positivo é descartado. Nunca mover decisão de dinheiro para o prompt.

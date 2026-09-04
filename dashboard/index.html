@@ -227,30 +227,44 @@ const D = { lancamentos:[], cartoes:[], fixos:[], dividas:[], plr:[] };
 const cartao = (titulo, hint, corpo) =>
   `<section class="card"><h2>${titulo}</h2>${hint?`<p class="hint">${hint}</p>`:''}${corpo}</section>`;
 
+// Em que dia a fatura DESTE ciclo vai ser cobrada. Mesma regra do nó Validar:
+// vencimento antes do fechamento significa que se paga no mês seguinte.
+function venceEm(comp, c){
+  const fecha=Number(c.dia_fechamento)||0, vence=Number(c.dia_vencimento)||0;
+  if(!fecha||!vence) return '';
+  const [ano,mes]=comp.split('-').map(Number);
+  let m = vence>fecha ? mes : mes+1, a = ano;
+  while(m>12){ m-=12; a+=1; }
+  return `${String(vence).padStart(2,'0')}/${String(m).padStart(2,'0')}/${String(a).slice(2)}`;
+}
+
 function secaoFaturas(comp){
   if(!D.cartoes.length) return '';
+  // A fatura EM FORMAÇÃO do ciclo escolhido — não a que vence neste mês. É a
+  // pergunta que importa no dia a dia: quanto já gastamos nesta fatura. O que
+  // vence, e quando, aparece na linha de cada cartão e no orçamento.
   const blocos = D.cartoes.map(c=>{
-    const itens = D.lancamentos.filter(l=>l.forma===c.nome && l.competencia_fatura===comp);
+    const itens = D.lancamentos.filter(l=>l.forma===c.nome && l.competencia===comp);
     const total = itens.reduce((a,l)=>a+l.valor,0);
     const porCat = {};
     itens.forEach(l=>{ porCat[l.categoria]=(porCat[l.categoria]||0)+l.valor; });
     const lista = Object.entries(porCat).sort((a,b)=>b[1]-a[1]);
+    const dia = venceEm(comp, c);
     return `<div class="fatura">
       <h3><span>${esc(c.nome)}</span><span class="tot">${esc(brl2(total))}</span></h3>
-      <p class="meta">fecha dia ${esc(c.dia_fechamento||'?')} · vence dia ${esc(c.dia_vencimento||'?')}</p>
+      <p class="meta">fecha dia ${esc(c.dia_fechamento||'?')}${dia?` · esta fatura vence em ${esc(dia)}`:''}</p>
       <ul>${lista.length
         ? lista.map(([cat,v])=>`<li><span>${esc(cat)}</span><span>${esc(brl2(v))}</span></li>`).join('')
-        : '<li class="vazio">nada nesta fatura</li>'}</ul></div>`;
+        : '<li class="vazio">nada gasto neste ciclo</li>'}</ul></div>`;
   }).join('');
-  const soma = D.lancamentos.filter(l=>l.competencia_fatura===comp).reduce((a,l)=>a+l.valor,0);
-  // Compra feita depois do fechamento cai na fatura seguinte: dizer só o que
-  // vence neste mês esconde justamente o gasto recém-lançado.
-  const adiante = D.lancamentos.filter(l=>l.competencia_fatura>comp);
-  const somaAdiante = adiante.reduce((a,l)=>a+l.valor,0);
-  const proximas = [...new Set(adiante.map(l=>l.competencia_fatura))].sort().map(rotuloMes);
+  const nomes = new Set(D.cartoes.map(c=>c.nome));
+  const soma = D.lancamentos.filter(l=>nomes.has(l.forma) && l.competencia===comp)
+    .reduce((a,l)=>a+l.valor,0);
+  const vencendo = D.lancamentos.filter(l=>l.competencia_fatura===comp)
+    .reduce((a,l)=>a+l.valor,0);
   return cartao('Cartões de crédito',
-    `o que vence em ${rotuloMes(comp)} — total ${brl2(soma)}`
-    + (somaAdiante ? ` · ${brl2(somaAdiante)} já lançado para ${proximas.join(', ')}` : ''),
+    `gasto no ciclo de ${rotuloMes(comp)} — total ${brl2(soma)}`
+    + ` · ${brl2(vencendo)} vence neste mês`,
     `<div class="faturas">${blocos}</div>`);
 }
 
@@ -284,13 +298,19 @@ function secaoFixos(comp){
 
 function secaoOrcamento(comp, itens){
   if(!D.cartoes.length && !D.fixos.length) return '';
-  const cartoes = D.lancamentos.filter(l=>l.competencia_fatura===comp).reduce((a,l)=>a+l.valor,0);
+  // gasto no cartão dentro do ciclo, que é o que a competência passou a
+  // significar. Somar pelo vencimento deixava a linha zerada justamente no mês
+  // em que a fatura está sendo formada.
+  const nomes = new Set(D.cartoes.map(c=>c.nome));
+  const cartoes = D.lancamentos.filter(l=>nomes.has(l.forma) && l.competencia===comp)
+    .reduce((a,l)=>a+l.valor,0);
   const ativos = D.fixos.filter(f=>!['nao','não','0','false'].includes(String(f.ativo||'sim').toLowerCase()));
   const fixos = ativos.reduce((a,f)=>a+num(f.valor),0);
   const inv = itens.filter(l=>l.tipo==='investimento').reduce((a,l)=>a+l.valor,0);
   const linhas = [['Cartões',cartoes],['Gastos fixos',fixos],['Investimentos',inv]];
   const total = linhas.reduce((a,[,v])=>a+v,0);
-  return cartao('Orçamento do mês', 'o que sai da conta em '+rotuloMes(comp),
+  return cartao('Orçamento do mês',
+    'gasto em '+rotuloMes(comp)+' — cartões do ciclo, fixos previstos e aportes',
     `<table><tbody>${linhas.map(([n,v])=>
       `<tr><td>${n}</td><td class="n">${esc(brl2(v))}</td></tr>`).join('')}</tbody>
       <tfoot><tr><td>Total</td><td class="n">${esc(brl2(total))}</td></tr></tfoot></table>`);

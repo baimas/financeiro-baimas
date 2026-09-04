@@ -115,6 +115,11 @@ um Pix em 27/08 conta em `2026-08`.
 Os dias de fechamento e vencimento saem da aba `Cartoes`: cartão novo é uma
 linha na planilha, nunca uma mudança no workflow.
 
+No dashboard, o card **Cartões de crédito** mostra a fatura **em formação** do
+ciclo escolhido — quanto já foi gasto e em que dia ela será cobrada —, e a linha
+*Cartões* do orçamento soma esse mesmo ciclo. O quanto vence no mês continua
+visível ao lado, em uma linha só.
+
 ## As armadilhas
 
 Todas custaram tempo de verdade. As duas primeiras aparecem antes de existir
