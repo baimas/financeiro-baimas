@@ -41,18 +41,33 @@ for (const f of src.fixos || []) {
 }
 const nomesFixos = Object.values(fixosPorNome).map((f) => f.nome);
 
-// Em que fatura esse gasto cai. Devolve a competencia do VENCIMENTO — que é o
-// mes em que o dinheiro sai da conta, e é assim que a planilha da casa pensa.
+const mesAno = (ano, mes) => {
+  while (mes > 12) { mes -= 12; ano += 1; }
+  return `${ano}-${String(mes).padStart(2, '0')}`;
+};
+
+// Em que mes o gasto CONTA. No cartao, o que manda nao e o dia da compra e sim
+// o ciclo: comprar em 27/08 com fatura fechando dia 26 e comprar em 10/09 e a
+// mesma fatura, a que fecha em 26/09 — e e junto que esses gastos precisam
+// aparecer, senao a fatura em formacao nunca e vista inteira.
+// Fora do cartao (Pix, dinheiro, debito) o dinheiro sai na hora: vale o mes da
+// data, sem ciclo nenhum.
+function competenciaCiclo(data, cartao) {
+  const [ano, mes, dia] = data.split('-').map(Number);
+  if (!cartao || !cartao.fechamento) return data.slice(0, 7);
+  return mesAno(ano, dia <= cartao.fechamento ? mes : mes + 1);
+}
+
+// Em que fatura esse gasto cai. Devolve a competencia do VENCIMENTO — o mes em
+// que o dinheiro sai da conta de verdade, que e outra pergunta: o gasto de
+// 27/08 conta no ciclo de setembro e so e pago na fatura de outubro.
 function competenciaFatura(data, cartao) {
   if (!cartao || !cartao.fechamento) return '';
   const [ano, mes, dia] = data.split('-').map(Number);
   // gasto depois do fechamento entra na fatura que fecha no mes seguinte
-  let mesFecha = dia <= cartao.fechamento ? mes : mes + 1;
+  const mesFecha = dia <= cartao.fechamento ? mes : mes + 1;
   // vencimento antes do fechamento significa que a fatura vence no mes seguinte
-  let mesVence = cartao.vencimento > cartao.fechamento ? mesFecha : mesFecha + 1;
-  let anoVence = ano;
-  while (mesVence > 12) { mesVence -= 12; anoVence += 1; }
-  return `${anoVence}-${String(mesVence).padStart(2, '0')}`;
+  return mesAno(ano, cartao.vencimento > cartao.fechamento ? mesFecha : mesFecha + 1);
 }
 
 const saida = [];
@@ -75,7 +90,7 @@ for (const item of itens) {
   saida.push({ json: {
     update_id: src.update_id,
     data,
-    competencia: data.slice(0, 7),      // o mes do gasto, para o orcamento
+    competencia: competenciaCiclo(data, cartoes[norm(forma)]),
     competencia_fatura: competenciaFatura(data, cartoes[norm(forma)]),
     criado_em: new Date().toISOString(),
     tipo,

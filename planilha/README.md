@@ -58,7 +58,7 @@ sem isso a mesma conta cairia em Assinaturas num mês e em Moradia no outro.
 |---|---|
 | `update_id` | id da mensagem no Telegram; serve para achar duplicata |
 | `data` | quando o gasto aconteceu |
-| `competencia` | `YYYY-MM` da data — é por ela que o orçamento agrupa |
+| `competencia` | `YYYY-MM` em que o gasto conta: no cartão, o ciclo em que a fatura fecha; fora dele, o mês da data |
 | `competencia_fatura` | `YYYY-MM` em que a fatura vence; vazio fora do cartão |
 | `criado_em` | quando o bot gravou |
 | `tipo` | `saida`, `entrada` ou `investimento` |
@@ -72,5 +72,14 @@ sem isso a mesma conta cairia em Assinaturas num mês e em Moradia no outro.
 | `confianca` | 0 a 1; abaixo de 0,7 o bot pede conferência no grupo |
 
 Duas competências porque são duas perguntas diferentes: `competencia` responde
-"quanto consumimos em agosto", `competencia_fatura` responde "quanto sai da
-conta em setembro". A planilha da casa sempre pensou nas duas.
+"quanto estamos gastando agora", `competencia_fatura` responde "quanto sai da
+conta neste mês". A planilha da casa sempre pensou nas duas.
+
+No cartão, "agora" não é o dia da compra: uma compra em 27/08 e outra em 10/09,
+num cartão que fecha dia 26, entram na **mesma** fatura — a que fecha em 26/09.
+Por isso as duas ficam na competência `2026-09`, e é assim que a fatura em
+formação pode ser vista inteira antes de chegar. Essa mesma compra de 27/08 só
+é paga na fatura que vence em 03/10, então sua `competencia_fatura` é `2026-10`.
+
+Fora do cartão — Pix, dinheiro, débito — o dinheiro sai na hora e não há ciclo
+nenhum: um Pix em 27/08 conta em `2026-08`.

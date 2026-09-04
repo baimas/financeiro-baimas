@@ -43,7 +43,18 @@ dest = sys.argv[1]
 cartoes = list(csv.DictReader(io.open(os.path.join(dest, "cartoes.csv"), encoding="utf-8")))
 fixos   = list(csv.DictReader(io.open(os.path.join(dest, "fixos.csv"), encoding="utf-8")))
 
-# a mesma regra do nó Validar: a competência da fatura é a do VENCIMENTO
+# as mesmas duas regras do nó Validar. No cartão, o gasto conta no ciclo em que
+# a fatura fecha; fora dele, no mês da data.
+def competencia_ciclo(ano, mes, dia, cartao):
+    if not cartao:
+        return f"{ano}-{mes:02d}"
+    m = mes if dia <= int(cartao["dia_fechamento"]) else mes + 1
+    a = ano
+    while m > 12:
+        m -= 12; a += 1
+    return f"{a}-{m:02d}"
+
+# a competência da fatura é a do VENCIMENTO
 def competencia_fatura(ano, mes, dia, cartao):
     fech, venc = int(cartao["dia_fechamento"]), int(cartao["dia_vencimento"])
     m = mes if dia <= fech else mes + 1
@@ -80,7 +91,8 @@ for atras in range(5, -1, -1):
         cart = next((c for c in cartoes if c["nome"] == forma), None)
         fatura = competencia_fatura(a, m, dia, cart) if cart else ""
         linhas.append({
-            "update_id": uid, "data": f"{comp}-{dia:02d}", "competencia": comp,
+            "update_id": uid, "data": f"{comp}-{dia:02d}",
+            "competencia": competencia_ciclo(a, m, dia, cart),
             "competencia_fatura": fatura, "criado_em": f"{comp}-{dia:02d}T12:00:00Z",
             "tipo": tipo, "valor": f"{valor:.2f}", "categoria": categoria, "forma": forma,
             "descricao": descricao, "pessoa": pessoa, "fixo": fixo,

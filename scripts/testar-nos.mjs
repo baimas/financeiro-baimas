@@ -75,7 +75,8 @@ await teste("monta a linha da planilha", async () => {
   const { linhas } = await comResposta([GASTO]);
   igual(linhas.length, 1, "quantidade");
   igual(linhas[0].valor, 85.5, "valor");
-  igual(linhas[0].competencia, "2026-08", "competencia");
+  // 27/08 no Nubank Vini, que fecha dia 26: é a fatura em formação de setembro
+  igual(linhas[0].competencia, "2026-09", "competencia");
   igual(linhas[0].pessoa, "Vini", "pessoa");
 });
 await teste("emite uma linha por lançamento", async () => {
@@ -123,6 +124,41 @@ await teste("sobrevive a JSON ilegível do modelo", async () => {
     candidates: [{ content: { parts: [{ text: "isto não é json" }] } }],
   }));
   igual(r.linhas.length, 0, "quantidade");
+});
+
+console.log("\nCompetência: em que mês o gasto conta");
+await teste("no cartão, o que manda é o ciclo, não o dia da compra", async () => {
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-27", forma: "Nubank Vini" }]);
+  igual(linhas[0].competencia, "2026-09", "competencia");
+});
+await teste("antes do fechamento, o gasto conta no próprio mês", async () => {
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-26", forma: "Nubank Vini" }]);
+  igual(linhas[0].competencia, "2026-08", "competencia");
+});
+await teste("compras do mesmo ciclo caem juntas, mesmo em meses diferentes", async () => {
+  const a = await comResposta([{ ...GASTO, data: "2026-08-27", forma: "Nubank Vini" }]);
+  const b = await comResposta([{ ...GASTO, data: "2026-09-10", forma: "Nubank Vini" }]);
+  igual(a.linhas[0].competencia, b.linhas[0].competencia, "mesma competência");
+});
+await teste("Pix em agosto conta em agosto: não há ciclo nenhum", async () => {
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-27", forma: "Pix" }]);
+  igual(linhas[0].competencia, "2026-08", "competencia");
+  igual(linhas[0].competencia_fatura, "", "fatura");
+});
+await teste("dinheiro e débito seguem a data, como o Pix", async () => {
+  for (const forma of ["Dinheiro", "Débito"]) {
+    const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-31", forma }]);
+    igual(linhas[0].competencia, "2026-08", `competencia com ${forma}`);
+  }
+});
+await teste("ciclo que atravessa o ano vira dezembro em janeiro", async () => {
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-12-29", forma: "Nubank Vini" }]);
+  igual(linhas[0].competencia, "2027-01", "competencia");
+});
+await teste("competência e fatura respondem perguntas diferentes", async () => {
+  const { linhas } = await comResposta([{ ...GASTO, data: "2026-08-27", forma: "Nubank Vini" }]);
+  igual(linhas[0].competencia, "2026-09", "em que mês conta");
+  igual(linhas[0].competencia_fatura, "2026-10", "em que mês se paga");
 });
 
 console.log("\nCiclo de fatura");
