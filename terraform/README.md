@@ -26,7 +26,7 @@ IP público reservado (sobrevive a destruir a VM)
 3. **Terraform** ≥ 1.5 e uma **chave SSH** (`ssh-keygen -t ed25519`).
 4. **Subdomínio no DuckDNS** — grátis. Guarde o token se quiser que a VM
    mantenha o DNS atualizado sozinha.
-5. **Chave do Claude** no Anthropic Console.
+5. **Chave do Gemini** no Google AI Studio.
 
 ```bash
 cp terraform.tfvars.example terraform.tfvars

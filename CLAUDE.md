@@ -5,7 +5,7 @@ dashboard estático por cima. Roda em produção desde 03/09/2026, para duas
 pessoas de verdade (Vini e Lidia). Não é protótipo: erro aqui some com
 lançamento de dinheiro real.
 
-`Grupo do Telegram → n8n (Oracle Always Free) → Claude → Google Sheets → dashboard`
+`Grupo do Telegram → n8n (Oracle Always Free) → Gemini → Google Sheets → dashboard`
 
 ## As duas regras de negócio que mais confundem
 
@@ -46,22 +46,19 @@ set/26. Foram lançados de uma vez, numa mensagem só com 23 linhas no formato
 `AAAA-MM-DD Estabelecimento 12,34 Nubank Vini` — o parser aguenta isso, e é o
 jeito mais rápido de trazer uma fatura inteira para dentro.
 
-**O repositório e a produção divergem de propósito, desde 05/09/2026.** O `main`
-gera o workflow com o nó do **Claude**; a VM roda o nó do **Gemini**. A troca
-está mergeada mas não foi ao ar: falta saldo na API da Anthropic (a assinatura
-Pro do claude.ai não dá crédito de API — são cobranças separadas) e falta o
-`testar-parser.mjs` passar. O ramo de falha do modelo foi ao ar sozinho, por um
-patch cirúrgico sobre o export da VM.
+**O modelo é o Gemini, e isso foi decidido, não herdado.** Em 04/09 houve uma
+troca para o Claude (commit `0945759`, mergeada pelo PR #1) por causa dos `503`
+recorrentes do Gemini. Ela foi revertida em 05/09 sem nunca ir ao ar: a API da
+Anthropic é pré-paga e a conta estava zerada — a assinatura Pro do claude.ai
+**não** dá crédito de API, são cobranças separadas.
 
-Enquanto durar: **não mande o JSON gerado pelo repo para a produção** — isso
-trocaria o modelo sem querer, e o bot pararia na hora, por falta de saldo.
-Decidido o modelo, o gerador já emite o ramo de falha e tudo volta a convergir
-num deploy normal.
+O que ficou da tentativa, e é o que vale: o `503` deixou de sumir com
+lançamento. Em vez de trocar de modelo, o nó ganhou saída de erro e o grupo
+passou a ser avisado. Se o Gemini voltar a incomodar, o caminho de volta ao
+Claude é `git revert` do revert, mais saldo na API — e as 43 mensagens do
+`testar-parser.mjs` passando antes de qualquer deploy.
 
 Aberto, em ordem de importância:
-
-0. **Decidir o modelo.** Recarregar a API e ir para o Claude, ou reverter o
-   `0945759` e ficar no Gemini. Enquanto não decidir, o repo e a VM divergem.
 1. **Usar por duas semanas sem mexer em nada.** É o critério de parada do MVP:
    se os dois não lançarem por duas semanas, o problema não é de funcionalidade
    e nenhuma feature nova resolve.
@@ -80,7 +77,7 @@ JSON não sobrevive a revisão. O JSON é artefato gerado:
 ```bash
 scripts/verificar.sh                      # tudo que roda sem rede: comece por aqui
 node scripts/montar-workflow.mjs          # regera os dois JSON de n8n/
-scripts/testar-parser.mjs                 # 43 mensagens contra o Claude (precisa de chave)
+scripts/testar-parser.mjs                 # 43 mensagens contra o Gemini (precisa de chave)
 scripts/dashboard-local.sh                # dashboard com dados de exemplo, sem planilha
 ```
 

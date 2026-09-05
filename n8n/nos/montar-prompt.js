@@ -1,4 +1,4 @@
-// Monta o prompt e o schema da ferramenta a partir do que a PLANILHA diz.
+// Monta o prompt e o responseSchema a partir do que a PLANILHA diz.
 // Cartões e gastos fixos vêm das abas Cartoes e GastosFixos: adicionar um cartão
 // novo ou um fixo novo é editar a planilha, nunca este workflow.
 
@@ -69,18 +69,12 @@ const prompt = [
   'Mensagem: ' + src.texto,
 ].filter(Boolean).join('\n');
 
-// Claude não tem responseSchema: a extração estruturada sai forçando o
-// modelo a chamar esta ferramenta, com tool_choice fixo nela. O input que ele
-// devolve já chega como objeto — nada de JSON.parse em cima de texto.
 const payload = {
-  model: 'claude-haiku-4-5-20251001',
-  max_tokens: 4096,
-  temperature: 0,
-  messages: [{ role: 'user', content: prompt }],
-  tools: [{
-    name: 'registrar_lancamentos',
-    description: 'Registra os lançamentos financeiros extraídos da mensagem.',
-    input_schema: {
+  contents: [{ role: 'user', parts: [{ text: prompt }] }],
+  generationConfig: {
+    temperature: 0,
+    responseMimeType: 'application/json',
+    responseSchema: {
       type: 'object',
       properties: {
         lancamentos: {
@@ -103,8 +97,7 @@ const payload = {
       },
       required: ['lancamentos'],
     },
-  }],
-  tool_choice: { type: 'tool', name: 'registrar_lancamentos' },
+  },
 };
 
 return [{ json: {

@@ -122,7 +122,7 @@ footer a{color:var(--muted)}
   <header class="masthead">
     <p class="eyebrow">Plano de execução &middot; versão simples</p>
     <h1>MVP em Um Fim de Semana</h1>
-    <p class="standfirst">Telegram, n8n, Claude, Google Sheets e um dashboard estático. Sem banco, sem servidor pago, sem multi-tenant. Os arquivos prontos estão no chat &mdash; este é o roteiro para ligá-los.</p>
+    <p class="standfirst">Telegram, n8n, Gemini, Google Sheets e um dashboard estático. Sem banco, sem servidor pago, sem multi-tenant. Os arquivos prontos estão no chat &mdash; este é o roteiro para ligá-los.</p>
     <ul class="chips">
       <li><b>Custo</b> R$ 0/mês</li>
       <li><b>Tempo</b> ~4 h no primeiro dia</li>
@@ -138,7 +138,7 @@ footer a{color:var(--muted)}
 
       <figure>
         <div class="figframe">
-          <svg viewBox="0 0 940 190" role="img" aria-label="Fluxo: mensagem no grupo do Telegram vai ao n8n, que faz a triagem, chama o Claude para extrair o lançamento, grava uma linha no Google Sheets e responde no grupo; o dashboard lê a mesma planilha publicada em CSV.">
+          <svg viewBox="0 0 940 190" role="img" aria-label="Fluxo: mensagem no grupo do Telegram vai ao n8n, que faz a triagem, chama o Gemini para extrair o lançamento, grava uma linha no Google Sheets e responde no grupo; o dashboard lê a mesma planilha publicada em CSV.">
             <defs>
               <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
                 <path d="M0,0 L10,5 L0,10 z" fill="currentColor" opacity=".55"/>
@@ -154,7 +154,7 @@ footer a{color:var(--muted)}
             <text class="sv-s" x="285" y="72" text-anchor="middle">triagem + validação</text>
 
             <rect class="sv-box" x="420" y="30" width="140" height="58" rx="6"/>
-            <text class="sv-t" x="490" y="54" text-anchor="middle">Claude</text>
+            <text class="sv-t" x="490" y="54" text-anchor="middle">Gemini</text>
             <text class="sv-s" x="490" y="72" text-anchor="middle">texto → JSON</text>
 
             <rect class="sv-key" x="620" y="30" width="150" height="58" rx="6"/>
@@ -246,9 +246,9 @@ footer a{color:var(--muted)}
     </section>
 
     <section>
-      <h2><span class="n">03</span> A chave do Claude &mdash; 3 min</h2>
-      <p>Entre no <a href="https://console.anthropic.com/settings/keys">Anthropic Console</a> e gere uma API key. O volume de um casal fica em poucos centavos de dólar por mês com o modelo <code>claude-haiku-4-5</code> &mdash; não é free tier, mas o custo é irrelevante nesse uso.</p>
-      <p>A chave entra no arquivo <code>.env</code> da VM. O nó do workflow a lê como <code>{{ $env.ANTHROPIC_API_KEY }}</code>, então ela nunca fica salva dentro do workflow &mdash; você pode exportar e versionar o JSON sem medo.</p>
+      <h2><span class="n">03</span> A chave do Gemini &mdash; 3 min</h2>
+      <p>Entre no <a href="https://aistudio.google.com/">Google AI Studio</a> e gere uma API key. O <em>free tier</em> cobre com folga o volume de um casal &mdash; e mesmo se um dia passar para o pago, o modelo <code>gemini-3.5-flash-lite</code> custa US$ 0,30 por milhão de tokens de entrada, o que nesse uso dá centavos por mês.</p>
+      <p>A chave entra no arquivo <code>.env</code> da VM. O nó do workflow a lê como <code>{{ $env.GEMINI_API_KEY }}</code>, então ela nunca fica salva dentro do workflow &mdash; você pode exportar e versionar o JSON sem medo.</p>
     </section>
 
     <section>
@@ -294,7 +294,7 @@ sudo usermod -aG docker $USER &amp;&amp; newgrp docker
 cd ~/gastos
 cp env.example .env
 openssl rand -hex 24          <span class="cmt"># cole o resultado em N8N_ENCRYPTION_KEY</span>
-nano .env                     <span class="cmt"># DOMINIO, ANTHROPIC_API_KEY, N8N_ENCRYPTION_KEY</span>
+nano .env                     <span class="cmt"># DOMINIO, GEMINI_API_KEY, N8N_ENCRYPTION_KEY</span>
 
 docker compose up -d
 docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</span></code></pre>
@@ -322,7 +322,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
           <tbody>
             <tr><td class="mono">Telegram Trigger</td><td>Recebe todo update do grupo</td></tr>
             <tr><td class="mono">Triagem e prompt</td><td>Confere o grupo e o remetente, descarta repetição pelo <code>update_id</code>, descarta mensagem sem número, resolve a data de hoje no fuso de São Paulo e monta o prompt com o schema de saída</td></tr>
-            <tr><td class="mono">Claude</td><td>Uma chamada HTTP forçando <code>tool_choice</code> numa ferramenta só &mdash; o modelo é obrigado a devolver o JSON no formato certo</td></tr>
+            <tr><td class="mono">Gemini</td><td>Uma chamada HTTP com <code>responseSchema</code> &mdash; o modelo é obrigado a devolver o JSON no formato certo</td></tr>
             <tr><td class="mono">Validar</td><td>Rejeita valor não positivo, força a categoria a estar na lista, calcula a competência e monta a linha</td></tr>
             <tr><td class="mono">Gravar na planilha</td><td><em>Append</em> mapeando as chaves do JSON nos cabeçalhos da aba</td></tr>
             <tr><td class="mono">Confirmar no grupo</td><td><em>Reply</em> curto na mensagem original</td></tr>
@@ -332,7 +332,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
 
       <div class="note">
         <span class="tag">Por que não usei os nós de IA do n8n</span>
-        <p>Um <code>HTTP Request</code> direto no Claude tem menos peças, não depende da versão dos nós LangChain e deixa o schema da ferramenta visível e editável. Quando o parser errar, você mexe em duas linhas de texto e testa na hora &mdash; que é exatamente o que você vai fazer nas primeiras semanas.</p>
+        <p>Um <code>HTTP Request</code> direto no Gemini tem menos peças, não depende da versão dos nós LangChain e deixa o <code>responseSchema</code> visível e editável. Quando o parser errar, você mexe em duas linhas de texto e testa na hora &mdash; que é exatamente o que você vai fazer nas primeiras semanas.</p>
       </div>
     </section>
 
@@ -364,7 +364,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
             <tr><td>Mando mensagem no grupo e o n8n não executa nada</td><td><em>Privacy mode</em> ainda ligado, ou o bot entrou no grupo antes de você desligar. Remova e readicione</td></tr>
             <tr><td>Executa, mas o nó Triagem devolve zero itens</td><td><code>CHAT_ID</code> ou <code>from.id</code> errados. Rode o trigger em modo teste e compare os números</td></tr>
             <tr><td>Caddy não emite certificado</td><td>Porta 80 fechada &mdash; quase sempre o <code>iptables</code> da Oracle, não a Security List</td></tr>
-            <tr><td>Claude responde 401</td><td>Chave ausente ou inválida. Confirme que <code>ANTHROPIC_API_KEY</code> está no <code>.env</code> e que o container foi recriado depois disso</td></tr>
+            <tr><td>Gemini responde 400</td><td>Chave ausente. Confirme que <code>GEMINI_API_KEY</code> está no <code>.env</code> e que o container foi recriado depois disso</td></tr>
             <tr><td>Grava linha em branco no Sheets</td><td>Nome da aba diferente de <code>Lancamentos</code>, ou cabeçalhos alterados</td></tr>
             <tr><td>Dashboard diz que não conseguiu ler</td><td>Planilha não publicada como CSV, ou a URL é a de edição em vez da de publicação</td></tr>
             <tr><td>Lançamento duplicado</td><td>Container reiniciou e limpou a memória do workflow. Ache pelo <code>update_id</code> repetido e apague a linha</td></tr>
@@ -383,7 +383,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
             <tr><td>Telegram Bot API</td><td>&mdash;</td><td class="r">R$ 0</td></tr>
             <tr><td>Oracle Cloud</td><td>Always Free</td><td class="r">R$ 0</td></tr>
             <tr><td>DuckDNS + Let's Encrypt</td><td>gratuito</td><td class="r">R$ 0</td></tr>
-            <tr><td>Claude Haiku</td><td>pago por uso</td><td class="r">centavos/mês</td></tr>
+            <tr><td>Gemini</td><td>free tier</td><td class="r">R$ 0</td></tr>
             <tr><td>Google Sheets</td><td>conta pessoal</td><td class="r">R$ 0</td></tr>
             <tr><td>GitHub Pages</td><td>público</td><td class="r">R$ 0</td></tr>
           </tbody>
@@ -392,7 +392,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
 
       <p>Deixado de fora de propósito, na ordem em que faz sentido acrescentar depois que registrar virar hábito:</p>
       <ol>
-        <li><strong>Áudio e foto de comprovante</strong> &mdash; um nó antes do Claude que baixa o arquivo do Telegram. É o que mais aumenta o uso no dia a dia.</li>
+        <li><strong>Áudio e foto de comprovante</strong> &mdash; um nó antes do Gemini que baixa o arquivo do Telegram. É o que mais aumenta o uso no dia a dia.</li>
         <li><strong>Resumo diário</strong> &mdash; um segundo workflow com <em>Schedule Trigger</em> às 21h, lendo a planilha e mandando uma linha no grupo.</li>
         <li><strong>Correção por botão</strong> &mdash; teclado inline para trocar a categoria sem abrir a planilha.</li>
         <li><strong>Perguntas em linguagem natural</strong> &mdash; aí sim o Sheets começa a apertar, e é o sinal de que vale a pena o Postgres do blueprint original.</li>
@@ -405,7 +405,7 @@ docker compose logs -f caddy  <span class="cmt"># espere o certificado sair</spa
     </section>
 
     <footer>
-      Referências: <a href="https://docs.claude.com/en/docs/about-claude/models/overview">modelos do Claude</a> ·
+      Referências: <a href="https://ai.google.dev/gemini-api/docs/models">modelos do Gemini</a> ·
       <a href="https://docs.n8n.io/hosting/installation/docker/">n8n em Docker</a> ·
       <a href="https://core.telegram.org/bots/api">Telegram Bot API</a> ·
       <a href="https://www.duckdns.org/">DuckDNS</a>

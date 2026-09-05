@@ -97,29 +97,29 @@ const wf = {
     {
       parameters: {
         method: "POST",
-        url: "https://api.anthropic.com/v1/messages",
+        url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
         sendHeaders: true,
         headerParameters: {
           parameters: [
-            { name: "x-api-key", value: "={{ $env.ANTHROPIC_API_KEY }}" },
-            { name: "anthropic-version", value: "2023-06-01" },
+            { name: "x-goog-api-key", value: "={{ $env.GEMINI_API_KEY }}" },
             { name: "Content-Type", value: "application/json" },
           ],
         },
         sendBody: true,
         specifyBody: "json",
         jsonBody: "={{ JSON.stringify($json.payload) }}",
-        // Uma API de LLM hospedada devolve 503/529 sob demanda alta de vez em
-        // quando. Com 20 s a mensagem do grupo se perdia à toa por isso.
+        // O flash-lite oscila muito: a mesma chamada de duas palavras respondeu
+        // em 1,4 s, 7,7 s e 29 s no mesmo minuto, e devolve 503 quando está
+        // sobrecarregado. Com 20 s a mensagem do grupo se perdia à toa.
         options: { timeout: 120000 },
       },
       id: "a1000000-0000-4000-8000-000000000006",
-      name: "Claude",
+      name: "Gemini",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
       position: [880, 300],
-      // 503/529 e timeout são transitórios: tentar de novo custa menos que
-      // perder o lançamento e ter que redigitar a mensagem no grupo.
+      // 503 e timeout do Gemini são transitórios: tentar de novo custa menos
+      // que perder o lançamento e ter que redigitar a mensagem no grupo.
       retryOnFail: true,
       maxTries: 3,
       waitBetweenTries: 3000,
@@ -237,6 +237,15 @@ const wf = {
 // diferentes no grupo.
 const liga = (de, para, saida = 0) => ({ de, para, saida });
 const conectar = (alvo, ligacoes) => {
+  // Ligação para nó que não existe é erro de digitação, e o n8n a engole calada:
+  // o JSON importa, o workflow ativa e só o grupo descobre que o ramo não roda.
+  // Aconteceu ao reverter a troca de modelo — a ligação ainda dizia "Claude"
+  // enquanto o nó já se chamava "Gemini" de novo.
+  const existe = new Set(alvo.nodes.map((n) => n.name));
+  for (const { de, para } of ligacoes) {
+    for (const nome of [de, para])
+      if (!existe.has(nome)) throw new Error(`ligação para nó inexistente: "${nome}"`);
+  }
   for (const { de, para, saida } of ligacoes) {
     const c = (alvo.connections[de] ||= { main: [] });
     while (c.main.length <= saida) c.main.push([]);
@@ -245,7 +254,7 @@ const conectar = (alvo, ligacoes) => {
 };
 
 // o caminho do gasto, que continua sendo uma linha reta depois do desvio
-const doGasto = ["Ler cartões", "Ler gastos fixos", "Montar prompt", "Claude",
+const doGasto = ["Ler cartões", "Ler gastos fixos", "Montar prompt", "Gemini",
   "Validar", "Gravar na planilha", "Resumo da resposta", "Confirmar no grupo",
   "Lembrar confirmação"];
 const ordem = ["Telegram Trigger", "Triagem", "É lançamento?", ...doGasto];
@@ -261,7 +270,7 @@ conectar(wf, [
   liga("Achou linha?", "Avisar exclusão", 1),     // não achou: explica no grupo
   liga("Apagar linha", "Avisar exclusão"),
   liga("Avisar exclusão", "Responder a exclusão"),
-  liga("Claude", "Aviso de falha", 1),            // o modelo falhou: avisa no grupo
+  liga("Gemini", "Aviso de falha", 1),            // o modelo falhou: avisa no grupo
   liga("Aviso de falha", "Avisar falha"),
 ]);
 

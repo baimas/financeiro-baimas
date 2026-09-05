@@ -24,8 +24,8 @@ services:
       - N8N_SECURE_COOKIE=false
       - GENERIC_TIMEZONE=America/Sao_Paulo
       - TZ=America/Sao_Paulo
-      # o nó Claude lê a chave como {{ $env.ANTHROPIC_API_KEY }}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # o nó Gemini lê a chave como {{ $env.GEMINI_API_KEY }}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       # a mesma chave do ensaio e da produção deixaria as credenciais migrarem;
       # aqui é de propósito uma chave só de teste

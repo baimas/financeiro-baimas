@@ -120,8 +120,8 @@ variable "dominio" {
   type        = string
 }
 
-variable "anthropic_api_key" {
-  description = "Chave da API do Claude (Anthropic Console)"
+variable "gemini_api_key" {
+  description = "Chave da API do Gemini (AI Studio)"
   type        = string
   sensitive   = true
 }

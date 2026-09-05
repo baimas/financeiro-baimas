@@ -19,7 +19,7 @@ locals {
 
   cloud_init = base64encode(templatefile("${path.module}/cloud-init.yaml.tftpl", {
     dominio            = var.dominio
-    anthropic_api_key  = var.anthropic_api_key
+    gemini_api_key     = var.gemini_api_key
     n8n_encryption_key = var.n8n_encryption_key
     dashboard_token    = var.dashboard_token
     duckdns_token      = var.duckdns_token

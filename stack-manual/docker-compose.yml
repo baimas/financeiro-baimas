@@ -14,8 +14,8 @@ services:
       - N8N_SECURE_COOKIE=true
       - GENERIC_TIMEZONE=America/Sao_Paulo
       - TZ=America/Sao_Paulo
-      # chave usada pelo nó Claude como {{ $env.ANTHROPIC_API_KEY }}
-      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      # chave usada pelo nó Gemini como {{ $env.GEMINI_API_KEY }}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
       - N8N_BLOCK_ENV_ACCESS_IN_NODE=false
       # gere uma vez com: openssl rand -hex 24
       - N8N_ENCRYPTION_KEY=${N8N_ENCRYPTION_KEY}

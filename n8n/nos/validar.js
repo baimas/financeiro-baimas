@@ -13,9 +13,13 @@ const acharNaLista = (valor, lista) => {
   return lista.find((x) => norm(x) === alvo) || null;
 };
 
-const bloco = (resp.content || []).find((b) => b.type === 'tool_use');
-if (!bloco) return [];                // modelo nao chamou a ferramenta: ignora
-const itens = Array.isArray(bloco.input.lancamentos) ? bloco.input.lancamentos : [];
+let p;
+try {
+  p = JSON.parse(resp.candidates[0].content.parts[0].text);
+} catch (e) {
+  return [];                          // modelo devolveu algo ilegivel: ignora
+}
+const itens = Array.isArray(p.lancamentos) ? p.lancamentos : [];
 if (!itens.length) return [];         // nao era lancamento: silencio
 
 // dia de fechamento e de vencimento por cartao, vindos da aba Cartoes

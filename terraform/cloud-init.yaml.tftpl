@@ -17,7 +17,7 @@ write_files:
     owner: root:root
     content: |
       DOMINIO=${dominio}
-      ANTHROPIC_API_KEY=${anthropic_api_key}
+      GEMINI_API_KEY=${gemini_api_key}
       N8N_ENCRYPTION_KEY=${n8n_encryption_key}
       DASHBOARD_TOKEN=${dashboard_token}
       TZ=${timezone}
@@ -39,7 +39,7 @@ write_files:
             - N8N_SECURE_COOKIE=true
             - GENERIC_TIMEZONE=$${TZ}
             - TZ=$${TZ}
-            - ANTHROPIC_API_KEY=$${ANTHROPIC_API_KEY}
+            - GEMINI_API_KEY=$${GEMINI_API_KEY}
             # segredo que autoriza o dashboard a apagar lançamentos; vazio
             # deixa o webhook recusando tudo, que é o padrão seguro
             - DASHBOARD_TOKEN=$${DASHBOARD_TOKEN}

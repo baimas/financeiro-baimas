@@ -24,7 +24,7 @@ etapa "Dashboard" node scripts/testar-dashboard.mjs
 
 if [ "$falhou" = 0 ]; then
   printf '\n\033[32mtudo certo\033[0m — o que depende de rede fica de fora:\n'
-  echo "  scripts/testar-parser.mjs   43 mensagens contra o Claude (precisa de ANTHROPIC_API_KEY)"
+  echo "  scripts/testar-parser.mjs   43 mensagens contra o Gemini (precisa de GEMINI_API_KEY)"
   echo "  scripts/checar-bot.sh       prova que o bot enxerga o grupo (precisa do token)"
 else
   printf '\n\033[31malguma etapa falhou\033[0m\n'

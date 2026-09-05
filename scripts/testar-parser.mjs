@@ -1,44 +1,40 @@
 #!/usr/bin/env node
-// Roda a suíte de mensagens reais contra o Claude — sem n8n, sem Telegram, sem VM.
+// Roda a suíte de mensagens reais contra o Gemini — sem n8n, sem Telegram, sem VM.
 //
 // Executa os code nodes do workflow de verdade (via scripts/lib/pipeline.mjs),
 // com as abas Cartoes e GastosFixos vindas dos CSVs modelo. O que este teste
 // aprova é o que vai rodar em produção.
 //
-//   export ANTHROPIC_API_KEY=sk-ant-...
+//   export GEMINI_API_KEY=AIza...
 //   scripts/testar-parser.mjs                 roda testes/mensagens.jsonl
 //   scripts/testar-parser.mjs --um "85 no mercado no nubank"
 //   scripts/testar-parser.mjs --verbose       mostra o JSON cru do modelo
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { RAIZ, URL_CLAUDE, MODELO, processar } from "./lib/pipeline.mjs";
+import { RAIZ, URL_GEMINI, MODELO, processar } from "./lib/pipeline.mjs";
 
 const args = process.argv.slice(2);
 const verbose = args.includes("--verbose");
 const iUm = args.indexOf("--um");
 const umTexto = iUm >= 0 ? args[iUm + 1] : null;
 
-const CHAVE = process.env.ANTHROPIC_API_KEY;
+const CHAVE = process.env.GEMINI_API_KEY;
 if (!CHAVE) {
-  console.error("falta ANTHROPIC_API_KEY. Pegue em https://console.anthropic.com/settings/keys e:");
-  console.error("  export ANTHROPIC_API_KEY=sk-ant-...");
+  console.error("falta GEMINI_API_KEY. Pegue em https://aistudio.google.com/apikey e:");
+  console.error("  export GEMINI_API_KEY=AIza...");
   process.exit(1);
 }
 
-async function chamarClaude(payload, tentativa = 1) {
-  const r = await fetch(URL_CLAUDE, {
+async function chamarGemini(payload, tentativa = 1) {
+  const r = await fetch(URL_GEMINI, {
     method: "POST",
-    headers: {
-      "x-api-key": CHAVE,
-      "anthropic-version": "2023-06-01",
-      "Content-Type": "application/json",
-    },
+    headers: { "x-goog-api-key": CHAVE, "Content-Type": "application/json" },
     body: JSON.stringify(payload),
   });
-  // 429, 5xx e 529 (sobrecarregado) sao do lado da API, nao do parser: tentar de novo
-  if ([429, 500, 502, 503, 504, 529].includes(r.status) && tentativa <= 5) {
+  // 429 e a familia 5xx sao do lado do Google, nao do parser: tentar de novo
+  if ([429, 500, 502, 503, 504].includes(r.status) && tentativa <= 5) {
     await new Promise((s) => setTimeout(s, 3000 * tentativa));
-    return chamarClaude(payload, tentativa + 1);
+    return chamarGemini(payload, tentativa + 1);
   }
   if (!r.ok) throw new Error(`HTTP ${r.status}: ${(await r.text()).slice(0, 200)}`);
   return r.json();
@@ -91,7 +87,7 @@ const casos = umTexto
 
 console.log(`modelo ${MODELO} · ${casos.length} mensagem(ns)\n`);
 
-const LIMITE = 3; // não vale martelar a API com 43 chamadas de uma vez
+const LIMITE = 3; // o free tier tem RPM curto
 const resultados = new Array(casos.length);
 let cursor = 0;
 async function trabalhador() {
@@ -99,7 +95,7 @@ async function trabalhador() {
     const i = cursor++;
     const c = casos[i];
     try {
-      const r = await processar(c.texto, chamarClaude);
+      const r = await processar(c.texto, chamarGemini);
       resultados[i] = { c, r, falhas: c.esperado ? conferir(c.esperado, r) : [] };
     } catch (e) {
       resultados[i] = { c, r: null, falhas: [`erro: ${e.message}`] };
