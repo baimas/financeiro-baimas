@@ -123,6 +123,10 @@ const wf = {
       retryOnFail: true,
       maxTries: 3,
       waitBetweenTries: 3000,
+      // As três tentativas já se esgotaram uma vez (503 em 04/09/2026), e o
+      // workflow morreu aqui: nenhuma resposta no grupo, lançamento perdido sem
+      // ninguém saber. A saída de erro leva ao aviso em vez de ao silêncio.
+      onError: "continueErrorOutput",
     },
     code("Validar", "validar.js", 1120, 300),
     {
@@ -159,6 +163,25 @@ const wf = {
       credentials: CRED_TELEGRAM,
     },
     code("Lembrar confirmação", "lembrar-confirmacao.js", 2080, 300),
+
+    // ── ramo da falha do modelo ─────────────────────────────────────────────
+    code("Aviso de falha", "aviso-falha.js", 1120, 120),
+    {
+      parameters: {
+        chatId: "={{ $json.chat_id }}",
+        text: "={{ $json.texto_resposta }}",
+        additionalFields: {
+          reply_to_message_id: "={{ $json.message_id }}",
+          appendAttribution: false,
+        },
+      },
+      id: "a1000000-0000-4000-8000-000000000018",
+      name: "Avisar falha",
+      type: "n8n-nodes-base.telegram",
+      typeVersion: 1.2,
+      position: [1360, 120],
+      credentials: CRED_TELEGRAM,
+    },
 
     // ── ramo do "apagar" pedido no grupo ────────────────────────────────────
     noSe("É lançamento?", "a1000000-0000-4000-8000-000000000011",
@@ -238,6 +261,8 @@ conectar(wf, [
   liga("Achou linha?", "Avisar exclusão", 1),     // não achou: explica no grupo
   liga("Apagar linha", "Avisar exclusão"),
   liga("Avisar exclusão", "Responder a exclusão"),
+  liga("Claude", "Aviso de falha", 1),            // o modelo falhou: avisa no grupo
+  liga("Aviso de falha", "Avisar falha"),
 ]);
 
 // ── workflow 2: apagar lançamentos, pedido pelo dashboard ───────────────────

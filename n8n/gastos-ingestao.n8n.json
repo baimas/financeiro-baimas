@@ -150,7 +150,8 @@
       ],
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 3000
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
     },
     {
       "parameters": {
@@ -250,6 +251,43 @@
         2080,
         300
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// O modelo falhou. Sem este nó o workflow morre aqui e o grupo não recebe nada:\n// quem mandou o gasto acha que foi registrado, e a linha nunca aparece na\n// planilha. Um lançamento perdido em silêncio é pior que um erro visível.\n//\n// O chat_id e o message_id vêm de $('Montar prompt'), não de $input: a saída de\n// erro entrega o erro do nó, não a mensagem que entrou nele.\n\nconst src = $('Montar prompt').first().json;\n\n// o formato varia com o tipo de falha (HTTP, timeout, rede), então lê defensivo\nconst err = $input.first().json.error || {};\nconst cru = JSON.stringify(err);\nconst codigo = err.httpCode || (cru.match(/\\b(4\\d\\d|5\\d\\d)\\b/) || [])[1] || '';\n\n// 429/500/502/503/504/529 e timeout passam sozinhos: pedir de novo resolve.\n// Qualquer outra coisa (chave inválida, sem saldo, payload recusado) não passa\n// sozinha, e dizer \"tenta de novo\" só faria a pessoa repetir à toa.\nconst passageiro = ['429', '500', '502', '503', '504', '529'].includes(String(codigo))\n  || /timeout|ETIMEDOUT|ECONNRESET|socket hang up/i.test(cru);\n\nconst texto = passageiro\n  ? '⚠️ o modelo está sobrecarregado agora. Nada foi lançado — manda a mensagem de novo daqui a pouco.'\n  : `⚠️ não consegui registrar${codigo ? ` (erro ${codigo})` : ''}. Nada foi lançado, e desta vez repetir não resolve: precisa de uma olhada no n8n.`;\n\nreturn [{ json: {\n  chat_id: src.chat_id,\n  message_id: src.message_id,\n  texto_resposta: texto,\n}}];\n"
+      },
+      "id": "a1000000-0000-4000-8000-000000001120",
+      "name": "Aviso de falha",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "={{ $json.texto_resposta }}",
+        "additionalFields": {
+          "reply_to_message_id": "={{ $json.message_id }}",
+          "appendAttribution": false
+        }
+      },
+      "id": "a1000000-0000-4000-8000-000000000018",
+      "name": "Avisar falha",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1360,
+        120
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "SUBSTITUA",
+          "name": "Telegram — bot de gastos"
+        }
+      }
     },
     {
       "parameters": {
@@ -497,6 +535,13 @@
             "type": "main",
             "index": 0
           }
+        ],
+        [
+          {
+            "node": "Aviso de falha",
+            "type": "main",
+            "index": 0
+          }
         ]
       ]
     },
@@ -618,6 +663,17 @@
         [
           {
             "node": "Responder a exclusão",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aviso de falha": {
+      "main": [
+        [
+          {
+            "node": "Avisar falha",
             "type": "main",
             "index": 0
           }

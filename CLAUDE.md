@@ -71,7 +71,7 @@ scripts/dashboard-local.sh                # dashboard com dados de exemplo, sem 
 ```
 
 `verificar.sh` confere a sintaxe dos code nodes, se o JSON está em dia com eles,
-os 65 testes offline e os 13 do dashboard. Editou qualquer coisa? Regere o JSON
+os 72 testes offline e os 13 do dashboard. Editou qualquer coisa? Regere o JSON
 e rode `verificar.sh`. Mexeu em prompt, categorias ou regra de fatura? Rode
 também o `testar-parser.mjs`, que fala com o modelo de verdade.
 
@@ -123,6 +123,13 @@ que deu errado.
   `criado_em`, conferir valor e descrição, e excluir de baixo para cima.
 - **O volume de dados pode não montar.** Antes de destruir qualquer VM, conferir
   `findmnt /opt/n8n-data` — houve um dia inteiro gravando no disco de boot.
+- **Falha do modelo não pode virar silêncio.** As três tentativas do nó do
+  modelo já se esgotaram em produção (503 em 04/09/2026): o workflow morria ali,
+  o grupo não recebia nada e quem mandou o gasto achava que tinha registrado. A
+  saída de erro do nó vai para `Aviso de falha` → `Avisar falha`. O aviso separa
+  o que passa sozinho (429, 5xx, timeout: "manda de novo") do que não passa
+  (chave, saldo, payload: "precisa de uma olhada no n8n") — dizer "tente de
+  novo" para um erro permanente só faz a pessoa repetir à toa.
 
 ## Infra
 

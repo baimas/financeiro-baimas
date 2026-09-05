@@ -210,6 +210,54 @@ await teste("confiança baixa pede conferência", async () => {
   if (!resumo.texto_resposta.includes("confira")) throw new Error(resumo.texto_resposta);
 });
 
+console.log("\nQuando o modelo falha");
+// A saída de erro do n8n entrega o erro do nó, não a mensagem que entrou nele:
+// o chat_id e o message_id somem. É a mesma armadilha do "apaguei undefined",
+// então o aviso lê $('Montar prompt') e o teste alimenta só isso.
+const DA_SAIDA_DE_ERRO = (erro) => ({ error: erro });
+const CTX_PROMPT = { "Montar prompt": { chat_id: -5403036702, message_id: 900 } };
+
+await teste("503 do modelo vira aviso no grupo, não silêncio", () => {
+  const r = fabricarRunner()("Aviso de falha",
+    DA_SAIDA_DE_ERRO({ httpCode: "503", message: "Service unavailable" }), CTX_PROMPT);
+  igual(r.length, 1, "itens");
+  if (!r[0].texto_resposta.includes("sobrecarregado")) throw new Error(r[0].texto_resposta);
+  if (!r[0].texto_resposta.includes("de novo")) throw new Error("não mandou reenviar");
+});
+await teste("o aviso responde à mensagem certa, com o chat certo", () => {
+  const r = fabricarRunner()("Aviso de falha",
+    DA_SAIDA_DE_ERRO({ httpCode: "503" }), CTX_PROMPT)[0];
+  igual(r.chat_id, -5403036702, "chat_id");
+  igual(r.message_id, 900, "message_id");
+});
+await teste("timeout também é passageiro, mesmo sem código HTTP", () => {
+  const r = fabricarRunner()("Aviso de falha",
+    DA_SAIDA_DE_ERRO({ message: "socket hang up" }), CTX_PROMPT)[0];
+  if (!r.texto_resposta.includes("sobrecarregado")) throw new Error(r.texto_resposta);
+});
+await teste("falta de saldo não manda repetir à toa", () => {
+  const r = fabricarRunner()("Aviso de falha",
+    DA_SAIDA_DE_ERRO({ httpCode: "400", message: "credit balance is too low" }), CTX_PROMPT)[0];
+  if (r.texto_resposta.includes("daqui a pouco")) throw new Error("mandou repetir um erro que não passa sozinho");
+  if (!r.texto_resposta.includes("400")) throw new Error(r.texto_resposta);
+});
+await teste("chave inválida também pede olhada no n8n", () => {
+  const r = fabricarRunner()("Aviso de falha",
+    DA_SAIDA_DE_ERRO({ httpCode: "401" }), CTX_PROMPT)[0];
+  if (!r.texto_resposta.includes("n8n")) throw new Error(r.texto_resposta);
+});
+await teste("erro sem formato conhecido ainda avisa alguma coisa", () => {
+  const r = fabricarRunner()("Aviso de falha", { error: "explodiu" }, CTX_PROMPT)[0];
+  if (!r.texto_resposta.startsWith("⚠️")) throw new Error(r.texto_resposta);
+  igual(r.chat_id, -5403036702, "chat_id");
+});
+await teste("o aviso nunca diz que gravou: o lançamento não existe", () => {
+  for (const erro of [{ httpCode: "503" }, { httpCode: "401" }, "explodiu"]) {
+    const r = fabricarRunner()("Aviso de falha", { error: erro }, CTX_PROMPT)[0];
+    if (!r.texto_resposta.includes("Nada foi lançado")) throw new Error(r.texto_resposta);
+  }
+});
+
 console.log("\nApagar pelo grupo");
 // como a aba Lancamentos volta do nó do Sheets, com o número da linha junto
 const NO_GRUPO = [
