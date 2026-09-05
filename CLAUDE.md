@@ -112,6 +112,18 @@ credenciais no lugar de `SUBSTITUA`, e — no workflow de ingestão — o
 Ids em produção: ingestão `ZqQV84ZudhX0QJvc`, exclusão `iaqjh23jv1jRrvOP`;
 credenciais `RLZBJcW0B2v8wBSe` (Telegram) e `jQ75dsLoMCZRnGab` (Google).
 
+**Herde da produção tudo que é da instância, não só as três coisas acima.** Além
+delas, os `id` de nó, as `position` e o `webhookId` **dos nós do Telegram que
+enviam** (não só o do trigger) existem na VM e não no JSON gerado. Exportar,
+copiar esses campos por nome de nó e só então importar reduz o deploy ao que se
+quis mudar: no conserto do `Apagar linha` em 05/09, isso derrubou o diff de 24
+campos para 1. Diferença que não se pretendia é diferença que ninguém revisou.
+
+**Compare o export com o JSON gerado antes e depois de cada deploy.** É o que
+revela a alteração feita à mão na interface: o `Apagar linha` estava sem
+`toDelete` e `numberToDelete` na VM, e continuava funcionando pelos defaults —
+não havia sintoma nenhum, só o diff.
+
 **Depois do restart, espere a linha `Activated workflow` no log.** O `/healthz`
 volta a 200 até dois minutos antes disso, e testar nessa janela dá 404 e parece
 que deu errado.
