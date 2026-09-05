@@ -3,7 +3,7 @@
 Bot no Telegram que registra os gastos da casa numa planilha, com um dashboard
 web por cima. Uso pessoal, custo zero.
 
-**Arquitetura ativa:** `Grupo do Telegram → n8n → Gemini → Google Sheets → dashboard estático`
+**Arquitetura ativa:** `Grupo do Telegram → n8n → Claude → Google Sheets → dashboard estático`
 
 **No ar desde 03/09/2026.** O primeiro lançamento de verdade — "Mercado 20,00
 Nubank Vini" no grupo — virou linha na aba `Lancamentos` com a competência e a
@@ -52,11 +52,11 @@ cd terraform && make init && terraform validate
 cd local && cp env.example .env && docker compose up -d   # n8n em localhost:5678
 ```
 
-**2. Chave do Gemini** — [AI Studio](https://aistudio.google.com/apikey), grátis,
+**2. Chave do Claude** — [Anthropic Console](https://console.anthropic.com/settings/keys),
 2 minutos. Com ela, a suíte de mensagens roda:
 
 ```bash
-export GEMINI_API_KEY=AIza...
+export ANTHROPIC_API_KEY=sk-ant-...
 scripts/testar-parser.mjs          # 43 mensagens reais contra o parser de verdade
 ```
 
@@ -175,7 +175,7 @@ Os code nodes vivem em `n8n/nos/*.js`, não dentro do JSON. Depois de editar:
 ```bash
 node scripts/montar-workflow.mjs      # regera os dois JSON de n8n/
 scripts/verificar.sh                  # sintaxe + JSON em dia + 78 testes offline
-scripts/testar-parser.mjs             # 43 mensagens contra o Gemini
+scripts/testar-parser.mjs             # 43 mensagens contra o Claude
 ```
 
 Os dois scripts de teste leem o workflow e executam os **próprios code nodes**
@@ -243,10 +243,9 @@ sudo docker exec n8n-n8n-1 n8n publish:workflow --id=<id>
 As credenciais sobrevivem ao import — o workflow guarda só o id delas. O import
 derruba a publicação, por isso o `publish:workflow` no fim.
 
-O nó do Gemini tem timeout de 120 s e três tentativas de propósito: o
-`flash-lite` respondeu à mesma chamada de duas palavras em 1,4 s, 7,7 s e 29 s
-no mesmo minuto, e devolve 503 quando está sobrecarregado. Não baixe esse
-timeout.
+O nó do Claude tem timeout de 120 s e três tentativas de propósito: uma API de
+LLM hospedada pode devolver 503/529 sob demanda alta, e é mais barato tentar de
+novo do que perder o lançamento. Não baixe esse timeout.
 
 ## O que o bot entende
 

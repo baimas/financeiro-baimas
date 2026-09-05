@@ -8,7 +8,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import {
   RAIZ, CARTOES, FIXOS, fabricarRunner, fabricarRunnerApagar, pedidoHttp,
-  update, respostaGemini, processar,
+  update, respostaModelo, processar,
 } from "./lib/pipeline.mjs";
 
 let falhas = 0;
@@ -28,7 +28,7 @@ const GASTO = {
 };
 // atalho: roda o pipeline com uma resposta fabricada do modelo
 const comResposta = (lancamentos, texto = "gastei 85,50 no assai") =>
-  processar(texto, async () => respostaGemini(lancamentos));
+  processar(texto, async () => respostaModelo(lancamentos));
 
 console.log("Triagem");
 await teste("aceita mensagem do grupo e do membro certos", () => {
@@ -58,16 +58,16 @@ await teste("as formas de pagamento saem da aba Cartoes, não do código", () =>
   for (const f of ["Débito", "Pix", "Dinheiro", "VA"]) if (!ctx.formas.includes(f)) throw new Error(`faltou ${f}`);
 });
 await teste("o enum do schema é a mesma lista de formas", () => {
-  const enumForma = ctx.payload.generationConfig.responseSchema
+  const enumForma = ctx.payload.tools[0].input_schema
     .properties.lancamentos.items.properties.forma.enum;
   igual(enumForma.join("|"), ctx.formas.join("|"), "enum");
 });
 await teste("os gastos fixos da planilha entram no prompt", () => {
-  const texto = ctx.payload.contents[0].parts[0].text;
+  const texto = ctx.payload.messages[0].content;
   for (const f of FIXOS) if (!texto.includes(f.nome)) throw new Error(`faltou ${f.nome}`);
 });
 await teste("o schema pede uma lista, não um lançamento só", () => {
-  igual(ctx.payload.generationConfig.responseSchema.properties.lancamentos.type, "array", "tipo");
+  igual(ctx.payload.tools[0].input_schema.properties.lancamentos.type, "array", "tipo");
 });
 
 console.log("\nValidar");
@@ -182,7 +182,7 @@ await teste("cartão que vence depois de fechar cobra no mesmo mês", () => {
   const triado = rodar("Triagem", update("gastei 50 no cartao teste"))[0];
   const cartaoTeste = [{ nome: "Cartão Teste", dia_fechamento: "15", dia_vencimento: "25" }];
   const ctx = rodar("Montar prompt", triado, { Triagem: triado, "Ler cartões": cartaoTeste, "Ler gastos fixos": FIXOS })[0];
-  const resp = respostaGemini([{ ...GASTO, forma: "Cartão Teste", data: "2026-08-10" }]);
+  const resp = respostaModelo([{ ...GASTO, forma: "Cartão Teste", data: "2026-08-10" }]);
   const linhas = rodar("Validar", resp, { "Montar prompt": ctx });
   igual(linhas[0].competencia_fatura, "2026-08", "fatura");
 });
