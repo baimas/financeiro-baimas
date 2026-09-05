@@ -97,29 +97,29 @@ const wf = {
     {
       parameters: {
         method: "POST",
-        url: "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent",
+        url: "https://api.anthropic.com/v1/messages",
         sendHeaders: true,
         headerParameters: {
           parameters: [
-            { name: "x-goog-api-key", value: "={{ $env.GEMINI_API_KEY }}" },
+            { name: "x-api-key", value: "={{ $env.ANTHROPIC_API_KEY }}" },
+            { name: "anthropic-version", value: "2023-06-01" },
             { name: "Content-Type", value: "application/json" },
           ],
         },
         sendBody: true,
         specifyBody: "json",
         jsonBody: "={{ JSON.stringify($json.payload) }}",
-        // O flash-lite oscila muito: a mesma chamada de duas palavras respondeu
-        // em 1,4 s, 7,7 s e 29 s no mesmo minuto, e devolve 503 quando está
-        // sobrecarregado. Com 20 s a mensagem do grupo se perdia à toa.
+        // Uma API de LLM hospedada devolve 503/529 sob demanda alta de vez em
+        // quando. Com 20 s a mensagem do grupo se perdia à toa por isso.
         options: { timeout: 120000 },
       },
       id: "a1000000-0000-4000-8000-000000000006",
-      name: "Gemini",
+      name: "Claude",
       type: "n8n-nodes-base.httpRequest",
       typeVersion: 4.2,
       position: [880, 300],
-      // 503 e timeout do Gemini são transitórios: tentar de novo custa menos
-      // que perder o lançamento e ter que redigitar a mensagem no grupo.
+      // 503/529 e timeout são transitórios: tentar de novo custa menos que
+      // perder o lançamento e ter que redigitar a mensagem no grupo.
       retryOnFail: true,
       maxTries: 3,
       waitBetweenTries: 3000,
@@ -222,7 +222,7 @@ const conectar = (alvo, ligacoes) => {
 };
 
 // o caminho do gasto, que continua sendo uma linha reta depois do desvio
-const doGasto = ["Ler cartões", "Ler gastos fixos", "Montar prompt", "Gemini",
+const doGasto = ["Ler cartões", "Ler gastos fixos", "Montar prompt", "Claude",
   "Validar", "Gravar na planilha", "Resumo da resposta", "Confirmar no grupo",
   "Lembrar confirmação"];
 const ordem = ["Telegram Trigger", "Triagem", "É lançamento?", ...doGasto];

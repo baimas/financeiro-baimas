@@ -23,7 +23,7 @@ if (st.vistos.length > 300) st.vistos = st.vistos.slice(-300);
 const texto = (msg.text || msg.caption || '').trim();
 if (!texto) return [];
 
-// 3. pedido de exclusao: sai por outro ramo, sem Gemini e sem prompt.
+// 3. pedido de exclusao: sai por outro ramo, sem Claude e sem prompt.
 // Vem antes do teste do numero porque "apagar" nao tem digito nenhum.
 const APAGAR = /^\s*(apagar?|apaga|deletar?|excluir?|remover?)\b/i;
 const comum = {

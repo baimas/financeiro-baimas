@@ -5,7 +5,7 @@ dashboard estático por cima. Roda em produção desde 03/09/2026, para duas
 pessoas de verdade (Vini e Lidia). Não é protótipo: erro aqui some com
 lançamento de dinheiro real.
 
-`Grupo do Telegram → n8n (Oracle Always Free) → Gemini → Google Sheets → dashboard`
+`Grupo do Telegram → n8n (Oracle Always Free) → Claude → Google Sheets → dashboard`
 
 ## As duas regras de negócio que mais confundem
 
@@ -66,7 +66,7 @@ JSON não sobrevive a revisão. O JSON é artefato gerado:
 ```bash
 scripts/verificar.sh                      # tudo que roda sem rede: comece por aqui
 node scripts/montar-workflow.mjs          # regera os dois JSON de n8n/
-scripts/testar-parser.mjs                 # 43 mensagens contra o Gemini (precisa de chave)
+scripts/testar-parser.mjs                 # 43 mensagens contra o Claude (precisa de chave)
 scripts/dashboard-local.sh                # dashboard com dados de exemplo, sem planilha
 ```
 

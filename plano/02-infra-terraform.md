@@ -40,7 +40,7 @@ Duas variáveis controlam tudo: `criar_instancia` (existe ou não) e `instancia_
 
 ## Segredos
 
-`GEMINI_API_KEY` e `N8N_ENCRYPTION_KEY` entram por variável sensitive do Terraform → `/opt/n8n/.env` (0600). **A encryption key não pode mudar** — é ela que cifra as credenciais do Telegram e do Google no n8n.
+`ANTHROPIC_API_KEY` e `N8N_ENCRYPTION_KEY` entram por variável sensitive do Terraform → `/opt/n8n/.env` (0600). **A encryption key não pode mudar** — é ela que cifra as credenciais do Telegram e do Google no n8n.
 
 ## Estado da validação (29/08/2026)
 

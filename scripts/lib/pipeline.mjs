@@ -16,8 +16,8 @@ export const nodeDo = (nome) => wf.nodes.find((x) => x.name === nome);
 const jsDo = (nome) => nodeDo(nome).parameters.jsCode;
 const jsApagar = (nome) => wfApagar.nodes.find((x) => x.name === nome).parameters.jsCode;
 
-export const URL_GEMINI = nodeDo("Gemini").parameters.url;
-export const MODELO = (URL_GEMINI.match(/models\/([^:]+):/) || [, "?"])[1];
+export const URL_CLAUDE = nodeDo("Claude").parameters.url;
+export const MODELO = (jsDo("Montar prompt").match(/model:\s*'([^']+)'/) || [, "?"])[1];
 
 const TRIAGEM = jsDo("Triagem");
 export const CHAT_ID = Number(TRIAGEM.match(/const CHAT_ID\s*=\s*(-?\d+)/)[1]);
@@ -94,14 +94,14 @@ export const pedidoHttp = (chaves, token) => ({
   body: { chaves },
 });
 
-export const respostaGemini = (lancamentos) => ({
-  candidates: [{ content: { parts: [{ text: JSON.stringify({ lancamentos }) }] } }],
+export const respostaModelo = (lancamentos) => ({
+  content: [{ type: "tool_use", id: "toolu_teste", name: "registrar_lancamentos", input: { lancamentos } }],
 });
 
 // ── o pipeline inteiro, de update do Telegram a linhas da planilha ──────────
-// chamarGemini(payload) -> resposta bruta da API. Injetado para que os testes
+// chamarModelo(payload) -> resposta bruta da API. Injetado para que os testes
 // offline usem uma resposta fabricada e a suíte use o modelo de verdade.
-export async function processar(texto, chamarGemini, over = {}) {
+export async function processar(texto, chamarModelo, over = {}) {
   const rodar = fabricarRunner();
   const triado = rodar("Triagem", update(texto, over))[0];
   if (!triado) return { descartadoNaTriagem: true, linhas: [] };
@@ -109,9 +109,9 @@ export async function processar(texto, chamarGemini, over = {}) {
   const anteriores = { Triagem: triado, "Ler cartões": CARTOES, "Ler gastos fixos": FIXOS };
   const ctx = rodar("Montar prompt", triado, anteriores)[0];
 
-  const resp = await chamarGemini(ctx.payload);
-  let cru = null;
-  try { cru = JSON.parse(resp.candidates[0].content.parts[0].text); } catch { /* Validar trata */ }
+  const resp = await chamarModelo(ctx.payload);
+  const blocoTool = (resp.content || []).find((b) => b.type === "tool_use");
+  const cru = blocoTool ? blocoTool.input : null;
 
   const linhas = rodar("Validar", resp, { "Montar prompt": ctx });
   const resumo = linhas.length ? rodar("Resumo da resposta", linhas, { "Montar prompt": ctx })[0] : null;
