@@ -34,7 +34,7 @@ sendo formada. Quanto vence, e em que dia, aparece ao lado.
 fora da lista vira `Outros`, forma não reconhecida vira `Não informado`, valor
 não-positivo é descartado. Nunca mover decisão de dinheiro para o prompt.
 
-## Onde o projeto está — 04/09/2026
+## Onde o projeto está — 05/09/2026
 
 Funcionando de ponta a ponta e em uso pelos dois. O grupo registra gasto, o bot
 confirma citando a mensagem, a linha cai na planilha, o dashboard mostra. Dá
@@ -46,8 +46,22 @@ set/26. Foram lançados de uma vez, numa mensagem só com 23 linhas no formato
 `AAAA-MM-DD Estabelecimento 12,34 Nubank Vini` — o parser aguenta isso, e é o
 jeito mais rápido de trazer uma fatura inteira para dentro.
 
+**O repositório e a produção divergem de propósito, desde 05/09/2026.** O `main`
+gera o workflow com o nó do **Claude**; a VM roda o nó do **Gemini**. A troca
+está mergeada mas não foi ao ar: falta saldo na API da Anthropic (a assinatura
+Pro do claude.ai não dá crédito de API — são cobranças separadas) e falta o
+`testar-parser.mjs` passar. O ramo de falha do modelo foi ao ar sozinho, por um
+patch cirúrgico sobre o export da VM.
+
+Enquanto durar: **não mande o JSON gerado pelo repo para a produção** — isso
+trocaria o modelo sem querer, e o bot pararia na hora, por falta de saldo.
+Decidido o modelo, o gerador já emite o ramo de falha e tudo volta a convergir
+num deploy normal.
+
 Aberto, em ordem de importância:
 
+0. **Decidir o modelo.** Recarregar a API e ir para o Claude, ou reverter o
+   `0945759` e ficar no Gemini. Enquanto não decidir, o repo e a VM divergem.
 1. **Usar por duas semanas sem mexer em nada.** É o critério de parada do MVP:
    se os dois não lançarem por duas semanas, o problema não é de funcionalidade
    e nenhuma feature nova resolve.
