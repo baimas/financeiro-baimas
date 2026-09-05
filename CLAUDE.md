@@ -66,8 +66,11 @@ Aberto, em ordem de importância:
    grupo). Vale repetir antes de confiar.
 3. **Voltar para o A1.Flex** quando houver capacidade em `sa-saopaulo-1`. Hoje é
    `E2.1.Micro` com 1 GB e swap em uso.
-4. **`WEBHOOK_URL` → `N8N_WEBHOOK_URL`** no cloud-init: a variável está
-   depreciada e um dia deixa de funcionar.
+4. **Variáveis de ambiente do n8n, no cloud-init.** `WEBHOOK_URL` →
+   `N8N_WEBHOOK_URL` (depreciada, um dia deixa de funcionar);
+   `N8N_RUNNERS_GRANT_TOKEN_TTL` maior que os 30 s padrão, que o boot desta VM
+   já estourou uma vez; e `N8N_RUNNERS_ENABLED`, que virou desnecessária.
+   Só valem no próximo restart, então dá para fazer as três de uma vez.
 
 ## Como o código é organizado
 
@@ -127,6 +130,13 @@ não havia sintoma nenhum, só o diff.
 **Depois do restart, espere a linha `Activated workflow` no log.** O `/healthz`
 volta a 200 até dois minutos antes disso, e testar nessa janela dá 404 e parece
 que deu errado.
+
+**Confira também `Registered runner "JS Task Runner"`.** Todo code node roda
+dentro desse runner — `Triagem`, `Validar`, `Aviso de falha`, todos. No restart
+de 05/09 ele falhou na primeira tentativa (`invalid or expired grant token`,
+TTL de 30 s) e só entrou na segunda: com 1 GB e swap, o boot passa dos 30 s. Se
+um dia não reconectar, o bot morre inteiro e o aviso de falha morre junto.
+`N8N_RUNNERS_GRANT_TOKEN_TTL` maior resolveria; ainda não foi mexido.
 
 ## Armadilhas que já custaram uma tarde
 
